@@ -78,16 +78,22 @@ impl Impl for HentaiOrigines {
 		let url = format!("{}{}", params.base_url, chapter.key);
 		let html = self.modify_request(params, Request::get(&url)?)?.html()?;
 		let mut context = PageContext::new();
-		context.insert("Referer".into(), url);
+		context.insert("Referer".into(), url.clone());
 		Ok(html
 			.select(".reading-content img.wp-manga-chapter-img, .reading-content .page-break img, .reading-content img[data-src], .reading-content img[data-lazy-src]")
 			.map(|els| {
 				els.filter_map(|image| {
-					let url = image
+					let image_url = image
 						.attr("data-src")
 						.or_else(|| image.attr("data-lazy-src"))
 						.or_else(|| image.attr("abs:src"))?;
-					Some(Page { content: PageContent::url_context(url.trim(), context.clone()), ..Default::default() })
+					Some(Page {
+						content: PageContent::url_context(
+							madara::helpers::absolute_url(&url, &image_url),
+							context.clone(),
+						),
+						..Default::default()
+					})
 				})
 				.collect()
 			})
@@ -104,3 +110,42 @@ register_source!(
 	ListingProvider,
 	MigrationHandler
 );
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use aidoku::{DynamicFilters, Home, ImageRequestProvider};
+	use aidoku_test::aidoku_test;
+
+	#[aidoku_test]
+	fn reader_returns_a_decodable_image() {
+		let source = Madara::<HentaiOrigines>::new();
+		let manga = source
+			.get_search_manga_list(None, 1, Vec::new())
+			.unwrap()
+			.entries
+			.into_iter()
+			.next()
+			.unwrap();
+		let manga = source.get_manga_update(manga, false, true).unwrap();
+		let chapter = manga.chapters.clone().unwrap().into_iter().next().unwrap();
+		let mut pages = source.get_page_list(manga, chapter).unwrap();
+		assert!(!pages.is_empty());
+		let PageContent::Url(url, context) = pages.remove(0).content else {
+			panic!("La première page n'est pas une URL")
+		};
+		let image = source
+			.get_image_request(url, context)
+			.unwrap()
+			.image()
+			.unwrap();
+		assert!(image.width() > 0.0 && image.height() > 0.0);
+	}
+
+	#[aidoku_test]
+	fn home_and_filters_are_populated() {
+		let source = Madara::<HentaiOrigines>::new();
+		assert!(!source.get_home().unwrap().components.is_empty());
+		assert!(source.get_dynamic_filters().unwrap().len() >= 6);
+	}
+}

@@ -15,7 +15,7 @@ Après la première publication GitHub Pages, ajoutez cette adresse dans **Aidok
 https://ulrichstern8888.github.io/aidoku/
 ```
 
-Activez ensuite **Réglages → Parcourir → Afficher les sources NSFW**, puis installez les sources depuis l'onglet **Parcourir**.
+Ouvrez ensuite **Parcourir**, sélectionnez la liste **Ulrichstern Aidoku Sources**, puis installez les sources souhaitées. Aidoku n'affiche pas nécessairement un réglage NSFW séparé selon la version installée.
 
 Les fichiers `.aix` peuvent aussi être téléchargés depuis l'artefact du dernier build ou depuis une release GitHub, puis ouverts avec Aidoku.
 
@@ -25,7 +25,7 @@ Les fichiers `.aix` peuvent aussi être téléchargés depuis l'artefact du dern
 | :----------------- | :----: | :--------------------------------------------------------- | :---------------------------------------------- |
 | HentaiOrigines     |   FR   | Recherche, accueil, listes, pagination, lecture            | Moteur Madara et cookie de validation adulte    |
 | Hentai Scantrad VF |   FR   | Recherche, accueil, listes, pagination, lecture            | Challenge Cloudflare possible                   |
-| ScansFR NSFW       |   FR   | Accueil progressif, recherche, filtres dynamiques, lecture | Jetons d'images signés et contrôle NSFW         |
+| ScansFR NSFW       |   FR   | Accueil complet, recherche, filtres dynamiques, lecture    | Jetons d'images signés et contrôle NSFW         |
 | OrtegaScans        |   FR   | API paginée, genres dynamiques, listes, lecture            | Exclusion Premium et secours JSON des chapitres |
 | FreeComics.XXX     |   EN   | Genres/artistes dynamiques, cinq rubriques, séries         | Rubriques parallèles et regroupement des livres |
 
@@ -33,8 +33,7 @@ Les fichiers `.aix` peuvent aussi être téléchargés depuis l'artefact du dern
 
 - API Rust moderne `aidoku-rs` 0.3 et cible `wasm32-unknown-unknown`.
 - Accueils Aidoku, listes paginées, recherche et filtres dynamiques.
-- Affichage progressif des fiches et squelettes de chargement pour réduire l'attente perçue.
-- Chargement parallèle des rubriques indépendantes OrtegaScans et FreeComics.
+- Résultats partiels des fiches et chargement parallèle des rubriques indépendantes.
 - Liens profonds vers les mangas et chapitres pris en charge.
 - En-têtes `Referer`, cookie adulte et requêtes d'images spécifiques aux sites.
 - Déduplication des mangas, chapitres et pages.
@@ -92,13 +91,13 @@ Le workflow `.github/workflows/build.yml` effectue automatiquement :
 4. la création et la vérification des `.aix` ;
 5. la génération de la liste Aidoku ;
 6. l'envoi d'un artefact téléchargeable ;
-7. la publication de `public/` sur la branche `gh-pages`.
+7. le déploiement direct de `public/` avec le service officiel GitHub Pages.
 
-Après le premier build réussi, ouvrez **GitHub → Settings → Pages** et sélectionnez :
+Avant le premier déploiement, ouvrez **GitHub → Settings → Pages** et sélectionnez :
 
-- **Source** : `Deploy from a branch` ;
-- **Branch** : `gh-pages` ;
-- **Folder** : `/ (root)`.
+- **Source** : `GitHub Actions`.
+
+Il ne faut plus sélectionner la branche `gh-pages` : le travail `deploy-pages` publie directement l'artefact produit par le travail de compilation. Cela garantit que chaque mise à jour validée devient immédiatement un nouveau déploiement Pages.
 
 L'adresse publique devient alors :
 
@@ -122,6 +121,8 @@ Pour qu'Aidoku propose une mise à jour, augmentez aussi le champ `info.version`
 ## Limites connues
 
 - Les sites peuvent changer leurs routes, leur HTML ou leur API sans préavis.
+- OrtegaScans fournit parfois des JPEG très longs (jusqu'à plus de 40 000 pixels et 10 Mo par page) : leur premier affichage peut être lent sur un appareil ancien.
+- ScansFR exige à la fois son cookie adulte et un User-Agent de navigateur ; la source les ajoute aux requêtes d'images.
 - Les filtres dynamiques OrtegaScans et FreeComics nécessitent une requête lors de leur première ouverture.
 - FreeComics ne fournit qu'une route serveur principale à la fois ; certaines combinaisons de facettes sont affinées localement et peuvent produire des pages moins remplies.
 - Le fonctionnement exact des cookies, du cache et de la WebView Cloudflare doit être confirmé dans Aidoku sur iPhone ou iPad.

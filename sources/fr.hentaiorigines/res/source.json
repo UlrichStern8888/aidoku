@@ -2,7 +2,7 @@
 	"info": {
 		"id": "fr.hentaiorigines",
 		"name": "HentaiOrigines",
-		"version": 3,
+		"version": 5,
 		"url": "https://hentai-origines.com",
 		"contentRating": 2,
 		"languages": ["fr"],
@@ -15,6 +15,6 @@
 		{"id": "views", "name": "Plus vues"}
 	],
 	"config": {
-		"maximumParallelRequests": 3
+		"maximumParallelRequests": 4
 	}
 }

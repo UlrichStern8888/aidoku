@@ -2,7 +2,7 @@
 	"info": {
 		"id": "fr.hentaiscantradvf",
 		"name": "Hentai Scantrad VF",
-		"version": 3,
+		"version": 5,
 		"url": "https://hentai.scantrad-vf.cc",
 		"contentRating": 2,
 		"languages": ["fr"],
@@ -15,6 +15,6 @@
 		{"id": "views", "name": "Plus vues"}
 	],
 	"config": {
-		"maximumParallelRequests": 3
+		"maximumParallelRequests": 4
 	}
 }

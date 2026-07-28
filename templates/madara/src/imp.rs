@@ -7,8 +7,8 @@ use crate::{
 use aidoku::{
 	Chapter, ContentRating, DeepLinkResult, Filter, FilterValue, HomeComponent, HomeLayout, Manga,
 	MangaPageResult, MangaStatus, MangaWithChapter, MultiSelectFilter, Page, PageContent,
-	PageContext, Result, Viewer,
-	alloc::{String, Vec, string::ToString, vec},
+	PageContext, Result, SelectFilter, SortFilter, TextFilter, Viewer,
+	alloc::{String, Vec, borrow::Cow, string::ToString, vec},
 	helpers::{element::ElementHelpers, string::StripPrefixOrSelf},
 	imports::{
 		html::{Document, Element},
@@ -56,10 +56,8 @@ pub trait Impl {
 
 	fn parse_manga_element(&self, params: &Params, element: Element) -> Option<Manga> {
 		let url_element = element.select_first(&params.search_manga_url_selector)?;
-		let key = url_element
-			.attr("abs:href")?
-			.strip_prefix_or_self(&params.base_url)
-			.into();
+		let external_url = url_element.attr("abs:href")?;
+		let key = external_url.strip_prefix_or_self(&params.base_url).into();
 		let title_element =
 			if params.search_manga_title_selector == params.search_manga_url_selector {
 				url_element
@@ -69,11 +67,13 @@ pub trait Impl {
 		let title = title_element.own_text()?;
 		let cover = element
 			.select_first(&params.search_manga_cover_selector)?
-			.img_attr(params.use_style_images);
+			.img_attr(params.use_style_images)
+			.map(|url| helpers::absolute_url(&params.base_url, &url));
 		Some(Manga {
 			key,
 			title,
 			cover,
+			url: Some(external_url),
 			..Default::default()
 		})
 	}
@@ -96,6 +96,7 @@ pub trait Impl {
 			manga.cover = html
 				.select_first(&params.details_cover_selector)
 				.and_then(|img| img.img_attr(params.use_style_images))
+				.map(|url| helpers::absolute_url(&params.base_url, &url))
 				.or(manga.cover);
 			manga.artists = html.select(&params.details_artist_selector).map(|els| {
 				els.filter_map(|span| span.text())
@@ -285,6 +286,7 @@ pub trait Impl {
 				element
 					.select_first(&params.chapter_thumbnail_selector)
 					.and_then(|el| el.img_attr(params.use_style_images))
+					.map(|url| helpers::absolute_url(&params.base_url, &url))
 			} else {
 				None
 			},
@@ -297,14 +299,18 @@ pub trait Impl {
 		let html = self.modify_request(params, Request::get(&url)?)?.html()?;
 
 		let Some(chapter_protector) = html.select_first(&params.chapter_protector_selector) else {
-			let base_uri = html.select_first("body").unwrap().base_uri().unwrap_or(url);
+			let base_uri = html
+				.select_first("body")
+				.and_then(|body| body.base_uri())
+				.unwrap_or(url);
 			let mut context = PageContext::new();
-			context.insert("Referer".into(), base_uri);
+			context.insert("Referer".into(), base_uri.clone());
 			return Ok(html
 				.select(&params.page_list_selector)
 				.map(|els| {
 					els.filter_map(|el| {
 						let url = el.select_first("img")?.img_attr(params.use_style_images)?;
+						let url = helpers::absolute_url(&base_uri, &url);
 						Some(Page {
 							content: PageContent::url_context(url, context.clone()),
 							..Default::default()
@@ -359,10 +365,16 @@ pub trait Impl {
 			.and_then(|str| serde_json::from_str::<Vec<String>>(&str))
 			.map_err(|_| error!("Failed to parse chapter data"))?;
 
+		let mut context = PageContext::new();
+		context.insert("Referer".into(), url.clone());
+		let page_base = url;
 		Ok(img_array
 			.into_iter()
-			.map(|url| Page {
-				content: PageContent::url(url),
+			.map(|image_url| Page {
+				content: PageContent::url_context(
+					helpers::absolute_url(&page_base, &image_url),
+					context.clone(),
+				),
 				..Default::default()
 			})
 			.collect())
@@ -378,11 +390,68 @@ pub trait Impl {
 	}
 
 	fn get_home(&self, params: &Params) -> Result<HomeLayout> {
+		// Build a complete home from the catalogue endpoints. These requests are
+		// independent, so sending them together keeps the home fast even when the
+		// site front page contains only its latest releases.
+		let definitions = [
+			("latest", "Dernières sorties", 1),
+			("new", "Nouvelles séries", 6),
+			("popular", "Tendances", 4),
+			("views", "Les plus vues", 5),
+		];
+		let mut requests = Vec::with_capacity(definitions.len());
+		for (_, _, index) in definitions {
+			let request = helpers::get_search_request(
+				params,
+				None,
+				1,
+				vec![FilterValue::Sort {
+					id: "m_orderby".into(),
+					index,
+					ascending: false,
+				}],
+			)?;
+			requests.push(self.modify_request(params, request)?);
+		}
+
+		let mut components = Vec::new();
+		for ((id, title, _), response) in definitions.into_iter().zip(Request::send_all(requests)) {
+			let Ok(response) = response else { continue };
+			let Ok(html) = response.get_html() else {
+				continue;
+			};
+			helpers::detect_load_more(params, &html);
+			let entries = html
+				.select(&params.search_manga_selector)
+				.map(|els| {
+					els.filter_map(|el| self.parse_manga_element(params, el))
+						.collect::<Vec<_>>()
+				})
+				.unwrap_or_default();
+			if !entries.is_empty() {
+				components.push(HomeComponent {
+					title: Some(title.into()),
+					subtitle: None,
+					value: aidoku::HomeComponentValue::Scroller {
+						entries: entries.into_iter().map(Into::into).collect(),
+						listing: Some(aidoku::Listing {
+							id: id.into(),
+							name: title.into(),
+							kind: aidoku::ListingKind::Default,
+						}),
+					},
+				});
+			}
+		}
+		if !components.is_empty() {
+			return Ok(HomeLayout { components });
+		}
+
+		// Fallback for sites that block catalogue endpoints but still expose the
+		// public front page (notably while a Cloudflare session is being solved).
 		let html = self
 			.modify_request(params, Request::get(&params.base_url)?)?
 			.html()?;
-
-		let mut components = Vec::new();
 
 		let parse_manga = |el: &Element| -> Option<Manga> {
 			let manga_link = el
@@ -399,6 +468,7 @@ pub trait Impl {
 						.or_else(|| img.attr("data-lazy-src"))
 						.or_else(|| img.attr("data-cfsrc"))
 						.or_else(|| img.attr("abs:src"))
+						.map(|url| helpers::absolute_url(&params.base_url, &url))
 				}),
 				url: manga_link.attr("href"),
 				..Default::default()
@@ -519,33 +589,119 @@ pub trait Impl {
 	}
 
 	fn get_dynamic_filters(&self, params: &Params) -> Result<Vec<Filter>> {
-		let request = Request::get(format!("{}{}", params.base_url, params.genre_endpoint))?;
-		let html = self.modify_request(params, request)?.html()?;
+		let mut options: Vec<Cow<'static, str>> = Vec::new();
+		let mut ids: Vec<Cow<'static, str>> = Vec::new();
+		if let Ok(request) = Request::get(format!("{}{}", params.base_url, params.genre_endpoint))
+			&& let Ok(request) = self.modify_request(params, request)
+			&& let Ok(html) = request.html()
+			&& let Some(group) = html.select_first("div.checkbox-group")
+			&& let Some(checkboxes) = group.select("div.checkbox")
+		{
+			for el in checkboxes {
+				if let (Some(option), Some(id)) = (
+					el.select_first("label").and_then(|label| label.text()),
+					el.select_first("input[type=checkbox]")
+						.and_then(|input| input.attr("value")),
+				) {
+					options.push(Cow::Owned(option));
+					ids.push(Cow::Owned(id));
+				}
+			}
+		}
 
-		let (options, ids) = html
-			.select_first("div.checkbox-group")
-			.ok_or(error!("Failed to find div.checkbox-group"))?
-			.select("div.checkbox")
-			.ok_or(error!("Failed to select div.checkbox"))?
-			.filter_map(|el| {
-				let option = el.select_first("label")?.text()?;
-				let id = el.select_first("input[type=checkbox]")?.attr("value")?;
-				Some((option.into(), id.into()))
-			})
-			.unzip();
-
-		Ok(vec![
-			MultiSelectFilter {
-				id: "genre[]".into(),
-				title: Some("Genres".into()),
-				is_genre: true,
-				can_exclude: false,
-				options,
-				ids: Some(ids),
+		let mut filters: Vec<Filter> = vec![
+			TextFilter {
+				id: "author".into(),
+				title: Some("Auteur".into()),
+				placeholder: Some("Nom de l’auteur".into()),
 				..Default::default()
 			}
 			.into(),
-		])
+			TextFilter {
+				id: "artist".into(),
+				title: Some("Artiste".into()),
+				placeholder: Some("Nom de l’artiste".into()),
+				..Default::default()
+			}
+			.into(),
+			TextFilter {
+				id: "release".into(),
+				title: Some("Année".into()),
+				placeholder: Some("Ex. 2025".into()),
+				..Default::default()
+			}
+			.into(),
+			SortFilter {
+				id: "m_orderby".into(),
+				title: Some("Tri".into()),
+				can_ascend: false,
+				options: vec![
+					"Défaut".into(),
+					"Dernière mise à jour".into(),
+					"Ordre alphabétique".into(),
+					"Note".into(),
+					"Tendances".into(),
+					"Vues".into(),
+					"Nouveautés".into(),
+				],
+				..Default::default()
+			}
+			.into(),
+			SelectFilter {
+				id: "adult".into(),
+				title: Some("Contenu adulte".into()),
+				options: vec!["Tous".into(), "Masquer".into(), "Uniquement adulte".into()],
+				ids: Some(vec!["".into(), "0".into(), "1".into()]),
+				..Default::default()
+			}
+			.into(),
+			MultiSelectFilter {
+				id: "status[]".into(),
+				title: Some("Statut".into()),
+				can_exclude: false,
+				options: vec![
+					"En cours".into(),
+					"Terminé".into(),
+					"Annulé".into(),
+					"En pause".into(),
+					"À venir".into(),
+				],
+				ids: Some(vec![
+					"on-going".into(),
+					"end".into(),
+					"canceled".into(),
+					"on-hold".into(),
+					"upcoming".into(),
+				]),
+				..Default::default()
+			}
+			.into(),
+		];
+		if !options.is_empty() {
+			filters.push(
+				MultiSelectFilter {
+					id: "genre[]".into(),
+					title: Some("Genres".into()),
+					is_genre: true,
+					can_exclude: false,
+					options,
+					ids: Some(ids),
+					..Default::default()
+				}
+				.into(),
+			);
+			filters.push(
+				SelectFilter {
+					id: "op".into(),
+					title: Some("Correspondance des genres".into()),
+					options: vec!["Au moins un genre".into(), "Tous les genres".into()],
+					ids: Some(vec!["".into(), "1".into()]),
+					..Default::default()
+				}
+				.into(),
+			);
+		}
+		Ok(filters)
 	}
 
 	fn get_image_request(
@@ -557,11 +713,26 @@ pub trait Impl {
 		if let Some(context) = context
 			&& let Some(referer) = context.get("Referer")
 		{
-			return self.modify_request(params, Request::get(url)?.header("Referer", referer));
+			return self.modify_request(
+				params,
+				Request::get(url)?
+					.header("Referer", referer)
+					.header(
+						"Accept",
+						"image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+					)
+					.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"),
+			);
 		}
 		self.modify_request(
 			params,
-			Request::get(url)?.header("Referer", &format!("{}/", params.base_url)),
+			Request::get(url)?
+				.header("Referer", &format!("{}/", params.base_url))
+				.header(
+					"Accept",
+					"image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+				)
+				.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"),
 		)
 	}
 

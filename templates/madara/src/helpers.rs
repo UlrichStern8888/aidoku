@@ -59,11 +59,13 @@ impl ElementImageAttr for Element {
 				.or_else(|| self.attr("data-lazy-src"))
 				.or_else(|| {
 					self.attr("srcset").and_then(|srcset| {
+						// A srcset is a comma-separated list of "url descriptor"
+						// entries. The final entry normally has the largest width.
 						srcset
-							.split(" ")
-							.filter(|s| s.starts_with("http"))
-							.max() // find longest url (highest quality)
-							.map(|s| s.into())
+							.split(',')
+							.filter_map(|entry| entry.split_whitespace().next())
+							.rfind(|url| !url.is_empty())
+							.map(String::from)
 					})
 				})
 				.or_else(|| self.attr("data-cfsrc"))
@@ -76,6 +78,38 @@ impl ElementImageAttr for Element {
 			fallback()
 		}
 	}
+}
+
+/// Resolve image attributes such as `/uploads/page.webp`, `//cdn/...`, or a
+/// path relative to the current chapter. Aidoku's reader requires an absolute
+/// URL; browsers normally perform this resolution for the website itself.
+pub fn absolute_url(base: &str, value: &str) -> String {
+	let value = value.trim().trim_matches(['\'', '"']);
+	if value.starts_with("http://") || value.starts_with("https://") || value.starts_with("data:") {
+		return value.into();
+	}
+	let (scheme, rest) = base.split_once("://").unwrap_or(("https", base));
+	if value.starts_with("//") {
+		return format!("{scheme}:{value}");
+	}
+	let origin = rest
+		.split('/')
+		.next()
+		.map(|host| format!("{scheme}://{host}"))
+		.unwrap_or_else(|| base.into());
+	if value.starts_with('/') {
+		return format!("{origin}{value}");
+	}
+	let clean_base = base.split(['?', '#']).next().unwrap_or(base);
+	let directory = if clean_base.trim_end_matches('/') == origin {
+		origin.as_str()
+	} else {
+		clean_base
+			.rsplit_once('/')
+			.map(|(directory, _)| directory)
+			.unwrap_or(clean_base)
+	};
+	format!("{directory}/{value}")
 }
 
 pub fn find_first_f32(s: &str) -> Option<f32> {
@@ -291,6 +325,10 @@ pub fn get_search_load_more_request(
 							Some(id),
 						);
 					}
+					qs.push(
+						&format!("vars[meta_query][{meta_query_idx}][compare]"),
+						Some("IN"),
+					);
 					meta_query_idx += 1;
 				}
 				_ => continue,
@@ -441,6 +479,26 @@ mod test {
 		assert_eq!(
 			decode_hex("642c5182b3040fe8"),
 			Some(vec![100, 44, 81, 130, 179, 4, 15, 232])
+		);
+	}
+
+	#[aidoku_test]
+	fn test_absolute_url() {
+		assert_eq!(
+			absolute_url("https://example.com", "uploads/page.webp"),
+			"https://example.com/uploads/page.webp"
+		);
+		assert_eq!(
+			absolute_url("https://example.com/manga/chapter/", "../page.webp"),
+			"https://example.com/manga/chapter/../page.webp"
+		);
+		assert_eq!(
+			absolute_url("https://example.com/manga/chapter/", "/page.webp"),
+			"https://example.com/page.webp"
+		);
+		assert_eq!(
+			absolute_url("https://example.com", "//cdn.example.com/page.webp"),
+			"https://cdn.example.com/page.webp"
 		);
 	}
 }

@@ -19,6 +19,7 @@ use serde::Deserialize;
 const BASE_URL: &str = "https://scansfr.com";
 const API_URL: &str = "https://api.scansfr.com";
 const COOKIE: &str = "scansfr_age_verified=true";
+const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -62,7 +63,9 @@ impl ScansFrNsfw {
 	fn request<T: AsRef<str>>(&self, url: T) -> Result<Request> {
 		Ok(Request::get(url)?
 			.header("Cookie", COOKIE)
-			.header("Referer", &format!("{BASE_URL}/nsfw")))
+			.header("Referer", &format!("{BASE_URL}/nsfw"))
+			.header("User-Agent", USER_AGENT)
+			.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"))
 	}
 
 	fn manga_json(&self, key: &str) -> Result<MangaJson> {
@@ -108,6 +111,11 @@ impl ScansFrNsfw {
 			key,
 			title,
 			cover,
+			url: Some(if href.starts_with("http") {
+				href
+			} else {
+				format!("{BASE_URL}{href}")
+			}),
 			content_rating: ContentRating::NSFW,
 			viewer: Viewer::Webtoon,
 			..Default::default()
@@ -302,6 +310,7 @@ impl Source for ScansFrNsfw {
 								.and_then(|d| DateTime::parse_from_rfc3339(&d).ok())
 								.map(|d| d.timestamp()),
 							language: Some("fr".into()),
+							url: Some(format!("{BASE_URL}/nsfw/read/{}/{number}", manga.key)),
 							..Default::default()
 						}
 					})
@@ -313,6 +322,11 @@ impl Source for ScansFrNsfw {
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let key = format!("{}-{}", manga.key, chapter.key);
+		let chapter_number = chapter.chapter_number.unwrap_or_default();
+		let referer = chapter
+			.url
+			.clone()
+			.unwrap_or_else(|| format!("{BASE_URL}/nsfw/read/{}/{chapter_number}", manga.key));
 		let chapter_data = self
 			.request(format!(
 				"{API_URL}/api/v1/chapters/{}",
@@ -328,7 +342,8 @@ impl Source for ScansFrNsfw {
 			encode_uri_component(&key)
 		))?
 		.header("Cookie", COOKIE)
-		.header("Referer", &format!("{BASE_URL}/nsfw"))
+		.header("Referer", &referer)
+		.header("User-Agent", USER_AGENT)
 		.header("Content-Type", "application/json")
 		.body(body)
 		.json_owned::<TokenJson>()?;
@@ -338,7 +353,7 @@ impl Source for ScansFrNsfw {
 			chapter_data.page_count.unwrap_or_default()
 		};
 		let mut context = PageContext::new();
-		context.insert("Referer".into(), format!("{BASE_URL}/nsfw"));
+		context.insert("Referer".into(), referer);
 		context.insert("Cookie".into(), COOKIE.into());
 		Ok((1..=count)
 			.map(|index| Page {
@@ -374,38 +389,28 @@ impl ListingProvider for ScansFrNsfw {
 impl Home for ScansFrNsfw {
 	fn get_home(&self) -> Result<HomeLayout> {
 		let definitions = [
-			("featured", "À la une", "", "featured"),
-			(
-				"updated",
-				"Dernières sorties",
-				"Dernieres Sorties",
-				"updated",
-			),
-			("latest", "Nouveautés", "Nouveautes", "latest"),
-			("views", "Top", "Top", "popular"),
+			("popular", "À la une", "popular"),
+			("updated", "Dernières sorties", "updated"),
+			("latest", "Nouveautés", "latest"),
+			("rating", "Les mieux notés", "rating"),
 		];
-		let html = self.request(format!("{BASE_URL}/nsfw"))?.html()?;
+		let requests = definitions
+			.iter()
+			.map(|(sort, _, _)| {
+				self.request(format!(
+					"{BASE_URL}/nsfw/catalog?page=1&limit=24&sort={sort}"
+				))
+			})
+			.collect::<Result<Vec<_>>>()?;
 		let mut components = Vec::new();
-		for (id, title, heading, listing_id) in definitions {
-			let entries = if id == "featured" {
-				html.select("a[href^='/nsfw/manga/']")
-					.and_then(|mut links| links.find_map(Self::parse_catalog_link))
-					.into_iter()
-					.collect::<Vec<_>>()
-			} else {
-				html.select("section")
-					.and_then(|mut sections| {
-						sections.find(|section| {
-							section
-								.select_first("h1, h2, h3")
-								.and_then(|h| h.text())
-								.is_some_and(|text| text.trim().eq_ignore_ascii_case(heading))
-						})
-					})
-					.and_then(|section| section.select("a[href^='/nsfw/manga/']"))
-					.map(|links| Self::deduplicate(links.filter_map(Self::parse_catalog_link)))
-					.unwrap_or_default()
+		for ((_, title, listing_id), response) in
+			definitions.into_iter().zip(Request::send_all(requests))
+		{
+			let Ok(response) = response else { continue };
+			let Ok(html) = response.get_html() else {
+				continue;
 			};
+			let entries = self.parse_catalog(&html).entries;
 			if entries.is_empty() {
 				continue;
 			}
@@ -424,10 +429,76 @@ impl Home for ScansFrNsfw {
 
 impl DynamicFilters for ScansFrNsfw {
 	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
-		let html = self.request(format!("{BASE_URL}/nsfw/catalog"))?.html()?;
-		let (type_options, type_ids) = Self::options_for(&html, "manga");
-		let (genre_options, genre_ids) = Self::options_for(&html, "Hentai");
-		let (status_options, status_ids) = Self::options_for(&html, "ongoing");
+		let html = self
+			.request(format!("{BASE_URL}/nsfw/catalog"))
+			.ok()
+			.and_then(|request| request.html().ok());
+		let (mut type_options, mut type_ids) = html
+			.as_ref()
+			.map(|html| Self::options_for(html, "manga"))
+			.unwrap_or_default();
+		let (mut genre_options, mut genre_ids) = html
+			.as_ref()
+			.map(|html| Self::options_for(html, "Hentai"))
+			.unwrap_or_default();
+		let (mut status_options, mut status_ids) = html
+			.as_ref()
+			.map(|html| Self::options_for(html, "ongoing"))
+			.unwrap_or_default();
+		if type_options.is_empty() {
+			type_options = vec![
+				"Tous types".into(),
+				"Manga".into(),
+				"Manhwa".into(),
+				"Manhua".into(),
+				"Webtoon".into(),
+			];
+			type_ids = vec![
+				"".into(),
+				"manga".into(),
+				"manhwa".into(),
+				"manhua".into(),
+				"webtoon".into(),
+			];
+		}
+		if genre_options.is_empty() {
+			genre_options = vec![
+				"Boy's Love".into(),
+				"Ecchi".into(),
+				"Harem".into(),
+				"Hentai".into(),
+				"Mature".into(),
+				"Pornhwa".into(),
+				"Smut".into(),
+				"Yuri".into(),
+			];
+			genre_ids = vec![
+				"Boy's Love".into(),
+				"Ecchi".into(),
+				"Harem".into(),
+				"Hentai".into(),
+				"Mature".into(),
+				"Pornhwa".into(),
+				"Smut".into(),
+				"Yuri".into(),
+			];
+		}
+		if status_options.is_empty() {
+			status_options = vec![
+				"Tous".into(),
+				"En cours".into(),
+				"Terminé".into(),
+				"En pause".into(),
+				"Abandonné".into(),
+			];
+			status_ids = vec![
+				"".into(),
+				"ongoing".into(),
+				"completed".into(),
+				"hiatus".into(),
+				"cancelled".into(),
+			];
+		}
 		Ok(vec![
 			SelectFilter {
 				id: "type".into(),
@@ -514,7 +585,14 @@ impl ImageRequestProvider for ScansFrNsfw {
 			.unwrap_or(COOKIE);
 		Ok(Request::get(url)?
 			.header("Cookie", cookie)
-			.header("Referer", referer))
+			.header("Referer", referer)
+			.header("User-Agent", USER_AGENT)
+			.header("Cache-Control", "no-cache")
+			.header(
+				"Accept",
+				"image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+			)
+			.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"))
 	}
 }
 
@@ -536,3 +614,41 @@ register_source!(
 	ImageRequestProvider,
 	ListingProvider
 );
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use aidoku_test::aidoku_test;
+
+	#[aidoku_test]
+	fn reader_returns_a_decodable_image() {
+		let source = ScansFrNsfw::new();
+		let manga = source
+			.search(None, 1, Vec::new())
+			.unwrap()
+			.entries
+			.into_iter()
+			.next()
+			.unwrap();
+		let manga = source.get_manga_update(manga, false, true).unwrap();
+		let chapter = manga.chapters.clone().unwrap().into_iter().next().unwrap();
+		let mut pages = source.get_page_list(manga, chapter).unwrap();
+		assert!(!pages.is_empty());
+		let PageContent::Url(url, context) = pages.remove(0).content else {
+			panic!("La première page n'est pas une URL")
+		};
+		let image = source
+			.get_image_request(url, context)
+			.unwrap()
+			.image()
+			.unwrap();
+		assert!(image.width() > 0.0 && image.height() > 0.0);
+	}
+
+	#[aidoku_test]
+	fn home_and_filters_are_populated() {
+		let source = ScansFrNsfw::new();
+		assert!(source.get_home().unwrap().components.len() >= 3);
+		assert!(source.get_dynamic_filters().unwrap().len() >= 5);
+	}
+}

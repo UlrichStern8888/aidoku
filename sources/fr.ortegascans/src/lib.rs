@@ -3,7 +3,7 @@ use aidoku::{
 	Chapter, CheckFilter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter,
 	FilterValue, Home, HomeComponent, HomeComponentValue, HomeLayout, ImageRequestProvider,
 	Listing, ListingKind, ListingProvider, Manga, MangaPageResult, MangaStatus, MultiSelectFilter,
-	Page, PageContent, PageContext, Result, SelectFilter, SortFilter, Source, Viewer,
+	Page, PageContent, PageContext, Result, SelectFilter, SortFilter, Source, TextFilter, Viewer,
 	alloc::{String, Vec, borrow::Cow, format, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
@@ -171,6 +171,7 @@ impl OrtegaScans {
 				))
 			});
 		Some(Manga {
+			url: Some(format!("{BASE_URL}/serie/{key}")),
 			key,
 			title,
 			cover,
@@ -344,6 +345,7 @@ impl Source for OrtegaScans {
 					let key = number.to_string();
 					if !chapters.iter().any(|chapter| chapter.key == key) {
 						chapters.push(Chapter {
+							url: Some(format!("{BASE_URL}/serie/{}/chapter/{key}", manga.key)),
 							key,
 							title: Some(format!("Chapitre {number}")),
 							chapter_number: Some(number),
@@ -488,6 +490,13 @@ impl DynamicFilters for OrtegaScans {
 			genres.iter().cloned().map(Cow::Owned).collect();
 		let genre_ids: Vec<Cow<'static, str>> = genres.into_iter().map(Cow::Owned).collect();
 		Ok(vec![
+			TextFilter {
+				id: "tags".into(),
+				title: Some("Tags".into()),
+				placeholder: Some("Ex. romance, mature…".into()),
+				..Default::default()
+			}
+			.into(),
 			MultiSelectFilter {
 				id: "genres".into(),
 				title: Some("Genres".into()),
@@ -601,7 +610,14 @@ impl ImageRequestProvider for OrtegaScans {
 			.and_then(|context| context.get("Referer"))
 			.map(String::as_str)
 			.unwrap_or(BASE_URL);
-		Ok(Request::get(url)?.header("Referer", referer))
+		Ok(Request::get(url)?
+			.header("Referer", referer)
+			.header("Cache-Control", "no-cache")
+			.header(
+				"Accept",
+				"image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+			)
+			.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"))
 	}
 }
 
@@ -632,3 +648,41 @@ register_source!(
 	ImageRequestProvider,
 	ListingProvider
 );
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use aidoku_test::aidoku_test;
+
+	#[aidoku_test]
+	fn reader_returns_jpeg_data() {
+		let source = OrtegaScans::new();
+		let manga = source
+			.search(None, 1, Vec::new())
+			.unwrap()
+			.entries
+			.into_iter()
+			.next()
+			.unwrap();
+		let manga = source.get_manga_update(manga, false, true).unwrap();
+		let chapter = manga.chapters.clone().unwrap().into_iter().next().unwrap();
+		let mut pages = source.get_page_list(manga, chapter).unwrap();
+		assert!(!pages.is_empty());
+		let PageContent::Url(url, context) = pages.remove(0).content else {
+			panic!("La première page n'est pas une URL")
+		};
+		let data = source
+			.get_image_request(url, context)
+			.unwrap()
+			.data()
+			.unwrap();
+		assert!(data.starts_with(&[0xff, 0xd8, 0xff]));
+	}
+
+	#[aidoku_test]
+	fn home_and_filters_are_populated() {
+		let source = OrtegaScans::new();
+		assert!(source.get_home().unwrap().components.len() >= 2);
+		assert!(source.get_dynamic_filters().unwrap().len() >= 5);
+	}
+}

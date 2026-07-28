@@ -169,10 +169,12 @@ impl FreeComicsXxx {
 					if let Some((before, _)) = title.split_once("(Chapter") {
 						title = before.trim().into();
 					}
+					let url = format!("{BASE_URL}{}", Self::route(&key));
 					Some(Manga {
 						key,
 						title,
 						cover,
+						url: Some(url),
 						content_rating: ContentRating::NSFW,
 						viewer: Viewer::Webtoon,
 						..Default::default()
@@ -447,6 +449,7 @@ impl Source for FreeComicsXxx {
 				ids.into_iter()
 					.enumerate()
 					.map(|(index, key)| Chapter {
+						url: Some(format!("{BASE_URL}/books/{key}.html")),
 						key,
 						title: Some(format!("Chapter {}", index + 1)),
 						chapter_number: Some((index + 1) as f32),
