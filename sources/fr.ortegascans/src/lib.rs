@@ -1,10 +1,9 @@
 #![no_std]
 use aidoku::{
 	Chapter, CheckFilter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter,
-	FilterValue, Home, HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult,
-	ImageRequestProvider, Listing, ListingKind, ListingProvider, Manga, MangaPageResult,
-	MangaStatus, MultiSelectFilter, Page, PageContent, Result, SelectFilter, SortFilter, Source,
-	Viewer,
+	FilterValue, Home, HomeComponent, HomeComponentValue, HomeLayout, ImageRequestProvider,
+	Listing, ListingKind, ListingProvider, Manga, MangaPageResult, MangaStatus, MultiSelectFilter,
+	Page, PageContent, PageContext, Result, SelectFilter, SortFilter, Source, Viewer,
 	alloc::{String, Vec, borrow::Cow, format, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
@@ -160,7 +159,11 @@ impl OrtegaScans {
 			.trim()
 			.into();
 		let cover = image
-			.and_then(|e| e.attr("abs:src").or_else(|| e.attr("data-src")))
+			.and_then(|e| {
+				e.attr("data-src")
+					.or_else(|| e.attr("data-lazy-src"))
+					.or_else(|| e.attr("abs:src"))
+			})
 			.or_else(|| {
 				Some(format!(
 					"{BASE_URL}/api/covers/{}.webp",
@@ -362,11 +365,8 @@ impl Source for OrtegaScans {
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let raw = Request::get(format!(
-			"{BASE_URL}/serie/{}/chapter/{}",
-			manga.key, chapter.key
-		))?
-		.string()?;
+		let referer = format!("{BASE_URL}/serie/{}/chapter/{}", manga.key, chapter.key);
+		let raw = Request::get(&referer)?.string()?;
 		let regex =
 			Regex::new(r#"\\?\"url\\?\":\\?\"(/api/chapters/[^\"\\]+/image/[^\"\\]+)\\?\""#)
 				.map_err(|e| error!("Regex invalide: {e}"))?;
@@ -378,10 +378,12 @@ impl Source for OrtegaScans {
 		if urls.is_empty() {
 			bail!("Aucune page trouvée")
 		}
+		let mut context = PageContext::new();
+		context.insert("Referer".into(), referer);
 		Ok(urls
 			.into_iter()
 			.map(|url| Page {
-				content: PageContent::url(url),
+				content: PageContent::url_context(url, context.clone()),
 				..Default::default()
 			})
 			.collect())
@@ -405,21 +407,7 @@ impl ListingProvider for OrtegaScans {
 
 impl Home for OrtegaScans {
 	fn get_home(&self) -> Result<HomeLayout> {
-		let definitions = [
-			("latest", "Dernières sorties"),
-			("new", "Nouvelles séries"),
-			("popular", "Séries populaires"),
-		];
-		send_partial_result(&HomePartialResult::Layout(HomeLayout {
-			components: definitions
-				.iter()
-				.map(|(_, title)| HomeComponent {
-					title: Some((*title).into()),
-					subtitle: None,
-					value: HomeComponentValue::empty_scroller(),
-				})
-				.collect(),
-		}));
+		let mut components = Vec::new();
 		let mut qs = QueryParameters::new();
 		qs.push("limit", Some("18"));
 		qs.push("page", Some("1"));
@@ -438,14 +426,14 @@ impl Home for OrtegaScans {
 			for (id, title) in [("latest", "Dernières sorties"), ("new", "Nouvelles séries")] {
 				let entries = Self::parse_section(&html, title);
 				if !entries.is_empty() {
-					send_partial_result(&HomePartialResult::Component(HomeComponent {
+					components.push(HomeComponent {
 						title: Some(title.into()),
 						subtitle: None,
 						value: HomeComponentValue::Scroller {
 							entries: entries.into_iter().map(Into::into).collect(),
 							listing: Some(Self::listing(id, title)),
 						},
-					}));
+					});
 				}
 			}
 		}
@@ -453,7 +441,7 @@ impl Home for OrtegaScans {
 			&& let Ok(payload) = response.get_json_owned::<SeriesResponse>()
 			&& payload.success
 		{
-			send_partial_result(&HomePartialResult::Component(HomeComponent {
+			components.push(HomeComponent {
 				title: Some("Séries populaires".into()),
 				subtitle: None,
 				value: HomeComponentValue::Scroller {
@@ -465,9 +453,9 @@ impl Home for OrtegaScans {
 						.collect(),
 					listing: Some(Self::listing("popular", "Séries populaires")),
 				},
-			}));
+			});
 		}
-		Ok(HomeLayout::default())
+		Ok(HomeLayout { components })
 	}
 }
 
@@ -606,9 +594,14 @@ impl ImageRequestProvider for OrtegaScans {
 	fn get_image_request(
 		&self,
 		url: String,
-		_context: Option<aidoku::PageContext>,
+		context: Option<aidoku::PageContext>,
 	) -> Result<Request> {
-		Ok(Request::get(url)?.header("Referer", BASE_URL))
+		let referer = context
+			.as_ref()
+			.and_then(|context| context.get("Referer"))
+			.map(String::as_str)
+			.unwrap_or(BASE_URL);
+		Ok(Request::get(url)?.header("Referer", referer))
 	}
 }
 

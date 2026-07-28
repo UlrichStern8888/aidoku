@@ -1,9 +1,9 @@
 #![no_std]
 use aidoku::{
 	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue,
-	Home, HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, ImageRequestProvider,
-	Listing, ListingKind, ListingProvider, Manga, MangaPageResult, MangaStatus, MultiSelectFilter,
-	Page, PageContent, Result, SelectFilter, SortFilter, Source, Viewer,
+	Home, HomeComponent, HomeComponentValue, HomeLayout, ImageRequestProvider, Listing,
+	ListingKind, ListingProvider, Manga, MangaPageResult, MangaStatus, MultiSelectFilter, Page,
+	PageContent, PageContext, Result, SelectFilter, SortFilter, Source, Viewer,
 	alloc::{String, Vec, borrow::Cow, format, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
@@ -94,8 +94,9 @@ impl ScansFrNsfw {
 		let key = Self::key_from_href(&href)?;
 		let image = element.select_first("img")?;
 		let cover = image
-			.attr("abs:src")
-			.or_else(|| image.attr("data-src"))
+			.attr("data-src")
+			.or_else(|| image.attr("data-lazy-src"))
+			.or_else(|| image.attr("abs:src"))
 			.map(|url| Self::image_url(&url));
 		let title = image
 			.attr("alt")
@@ -336,15 +337,21 @@ impl Source for ScansFrNsfw {
 		} else {
 			chapter_data.page_count.unwrap_or_default()
 		};
+		let mut context = PageContext::new();
+		context.insert("Referer".into(), format!("{BASE_URL}/nsfw"));
+		context.insert("Cookie".into(), COOKIE.into());
 		Ok((1..=count)
 			.map(|index| Page {
-				content: PageContent::url(format!(
-					"{API_URL}/api/v1/images/{}/{index}?sig={}&exp={}&s={}",
-					token.chapter_id,
-					encode_uri_component(&token.sig),
-					token.exp,
-					encode_uri_component(&token.session_hash)
-				)),
+				content: PageContent::url_context(
+					format!(
+						"{API_URL}/api/v1/images/{}/{index}?sig={}&exp={}&s={}",
+						token.chapter_id,
+						encode_uri_component(&token.sig),
+						token.exp,
+						encode_uri_component(&token.session_hash)
+					),
+					context.clone(),
+				),
 				..Default::default()
 			})
 			.collect())
@@ -377,17 +384,8 @@ impl Home for ScansFrNsfw {
 			("latest", "Nouveautés", "Nouveautes", "latest"),
 			("views", "Top", "Top", "popular"),
 		];
-		send_partial_result(&HomePartialResult::Layout(HomeLayout {
-			components: definitions
-				.iter()
-				.map(|(_, title, _, _)| HomeComponent {
-					title: Some((*title).into()),
-					subtitle: None,
-					value: HomeComponentValue::empty_scroller(),
-				})
-				.collect(),
-		}));
 		let html = self.request(format!("{BASE_URL}/nsfw"))?.html()?;
+		let mut components = Vec::new();
 		for (id, title, heading, listing_id) in definitions {
 			let entries = if id == "featured" {
 				html.select("a[href^='/nsfw/manga/']")
@@ -411,16 +409,16 @@ impl Home for ScansFrNsfw {
 			if entries.is_empty() {
 				continue;
 			}
-			send_partial_result(&HomePartialResult::Component(HomeComponent {
+			components.push(HomeComponent {
 				title: Some(title.into()),
 				subtitle: None,
 				value: HomeComponentValue::Scroller {
 					entries: entries.into_iter().map(Into::into).collect(),
 					listing: Some(Self::listing(listing_id, title)),
 				},
-			}));
+			});
 		}
-		Ok(HomeLayout::default())
+		Ok(HomeLayout { components })
 	}
 }
 
@@ -502,9 +500,21 @@ impl ImageRequestProvider for ScansFrNsfw {
 	fn get_image_request(
 		&self,
 		url: String,
-		_context: Option<aidoku::PageContext>,
+		context: Option<aidoku::PageContext>,
 	) -> Result<Request> {
-		self.request(url)
+		let referer = context
+			.as_ref()
+			.and_then(|context| context.get("Referer"))
+			.map(String::as_str)
+			.unwrap_or(BASE_URL);
+		let cookie = context
+			.as_ref()
+			.and_then(|context| context.get("Cookie"))
+			.map(String::as_str)
+			.unwrap_or(COOKIE);
+		Ok(Request::get(url)?
+			.header("Cookie", cookie)
+			.header("Referer", referer))
 	}
 }
 

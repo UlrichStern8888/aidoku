@@ -1,6 +1,6 @@
 # Ulrichstern — sources Aidoku en Rust
 
-[![Build and publish](https://github.com/Ulrichstern/aidoku-main/actions/workflows/build.yml/badge.svg)](https://github.com/Ulrichstern/aidoku-main/actions/workflows/build.yml)
+[![Build and publish](https://github.com/Ulrichstern8888/aidoku/actions/workflows/build.yml/badge.svg)](https://github.com/Ulrichstern8888/aidoku/actions/workflows/build.yml)
 
 Portage Rust pour Aidoku 0.7+ de cinq sources issues du projet Paperback. Le dépôt produit des paquets `.aix` installables et une liste de sources mise à jour automatiquement avec GitHub Actions et GitHub Pages.
 
@@ -12,7 +12,7 @@ Portage Rust pour Aidoku 0.7+ de cinq sources issues du projet Paperback. Le dé
 Après la première publication GitHub Pages, ajoutez cette adresse dans **Aidoku → Réglages → Listes de sources** :
 
 ```text
-https://Ulrichstern.github.io/aidoku-main/index.min.json
+https://ulrichstern8888.github.io/aidoku/
 ```
 
 Activez ensuite **Réglages → Parcourir → Afficher les sources NSFW**, puis installez les sources depuis l'onglet **Parcourir**.
@@ -72,7 +72,7 @@ Le script crée :
 
 ## Publier le dépôt sur GitHub
 
-Créez un dépôt public nommé `aidoku-main` sur le compte `Ulrichstern`, sans ajouter automatiquement de README ou de licence, puis exécutez :
+Le dépôt public utilisé est `Ulrichstern8888/aidoku`. Pour envoyer les modifications :
 
 ```powershell
 cd D:\Downloads\aidoku-main
@@ -80,7 +80,7 @@ git init
 git add .
 git commit -m "Initial Aidoku sources"
 git branch -M main
-git remote add origin https://github.com/Ulrichstern/aidoku-main.git
+git remote add origin https://github.com/Ulrichstern8888/aidoku.git
 git push -u origin main
 ```
 
@@ -103,10 +103,10 @@ Après le premier build réussi, ouvrez **GitHub → Settings → Pages** et sé
 L'adresse publique devient alors :
 
 ```text
-https://Ulrichstern.github.io/aidoku-main/index.min.json
+https://ulrichstern8888.github.io/aidoku/
 ```
 
-Si le dépôt est renommé, remplacez simplement `aidoku-main` dans cette adresse par le nouveau nom.
+La forme explicite `https://ulrichstern8888.github.io/aidoku/index.min.json` fonctionne également.
 
 ## Publier une release
 

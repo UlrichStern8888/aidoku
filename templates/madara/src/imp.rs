@@ -394,9 +394,12 @@ pub trait Impl {
 					.strip_prefix_or_self(&params.base_url)
 					.into(),
 				title: manga_link.text()?,
-				cover: el
-					.select_first("img")
-					.and_then(|img| img.attr("abs:src").or_else(|| img.attr("data-cfsrc"))),
+				cover: el.select_first("img").and_then(|img| {
+					img.attr("data-src")
+						.or_else(|| img.attr("data-lazy-src"))
+						.or_else(|| img.attr("data-cfsrc"))
+						.or_else(|| img.attr("abs:src"))
+				}),
 				url: manga_link.attr("href"),
 				..Default::default()
 			})
@@ -487,6 +490,25 @@ pub trait Impl {
 					subtitle: None,
 					value: aidoku::HomeComponentValue::Scroller {
 						entries: todays_trends.into_iter().map(|m| m.into()).collect(),
+						listing: None,
+					},
+				});
+			}
+		}
+
+		// Many Madara sites no longer use the old main-col/widget structure.
+		// Fall back to the standard archive cards exposed on their front page.
+		if components.is_empty() {
+			let items = html
+				.select(".page-item-detail.manga, .c-tabs-item__content")
+				.map(|els| els.filter_map(|el| parse_manga(&el)).collect::<Vec<_>>())
+				.unwrap_or_default();
+			if !items.is_empty() {
+				components.push(HomeComponent {
+					title: Some("Dernières sorties".into()),
+					subtitle: None,
+					value: aidoku::HomeComponentValue::Scroller {
+						entries: items.into_iter().map(Into::into).collect(),
 						listing: None,
 					},
 				});

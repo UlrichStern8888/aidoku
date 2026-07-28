@@ -2,7 +2,7 @@
 	"info": {
 		"id": "fr.ortegascans",
 		"name": "OrtegaScans",
-		"version": 2,
+		"version": 3,
 		"url": "https://ortegascans.fr",
 		"contentRating": 2,
 		"languages": ["fr"],

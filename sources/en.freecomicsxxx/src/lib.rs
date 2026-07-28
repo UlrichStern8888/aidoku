@@ -1,9 +1,9 @@
 #![no_std]
 use aidoku::{
 	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue,
-	Home, HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, ImageRequestProvider,
-	Listing, ListingKind, ListingProvider, Manga, MangaPageResult, MangaStatus, MultiSelectFilter,
-	Page, PageContent, Result, Source, UpdateStrategy, Viewer,
+	Home, HomeComponent, HomeComponentValue, HomeLayout, ImageRequestProvider, Listing,
+	ListingKind, ListingProvider, Manga, MangaPageResult, MangaStatus, MultiSelectFilter, Page,
+	PageContent, PageContext, Result, Source, UpdateStrategy, Viewer,
 	alloc::{String, Vec, borrow::Cow, format, vec},
 	helpers::uri::{decode_uri, encode_uri_component},
 	imports::{
@@ -155,9 +155,12 @@ impl FreeComicsXxx {
 					let image = main
 						.select_first("img")
 						.or_else(|| card.select_first("img"));
-					let cover = image
-						.as_ref()
-						.and_then(|e| e.attr("abs:src").or_else(|| e.attr("data-src")));
+					let cover = image.as_ref().and_then(|e| {
+						e.attr("data-src")
+							.or_else(|| e.attr("data-lazy-src"))
+							.or_else(|| e.attr("data-original"))
+							.or_else(|| e.attr("abs:src"))
+					});
 					let raw_title = main
 						.attr("title")
 						.or_else(|| image.and_then(|e| e.attr("alt")))
@@ -343,7 +346,13 @@ impl Source for FreeComicsXxx {
 			.unwrap_or(manga.title);
 			manga.cover = html
 				.select_first(".xcpreview img, meta[property='og:image'], .ximg")
-				.and_then(|e| e.attr("abs:src").or_else(|| e.attr("content")))
+				.and_then(|e| {
+					e.attr("data-src")
+						.or_else(|| e.attr("data-lazy-src"))
+						.or_else(|| e.attr("data-original"))
+						.or_else(|| e.attr("content"))
+						.or_else(|| e.attr("abs:src"))
+				})
 				.or(manga.cover);
 			if manga.cover.is_none() && matches!(identity, Identity::Book(_)) {
 				let search = self
@@ -390,21 +399,8 @@ impl Source for FreeComicsXxx {
 			}
 		}
 		if needs_chapters {
-			let chapter_html = match identity {
-				Identity::Series(_) => {
-					let href = html
-						.select_first(".xcpreview a[href*='/books/']")
-						.and_then(|e| e.attr("href"));
-					if let Some(href) = href {
-						self.request(&Self::destination(&href))?.html()?
-					} else {
-						html
-					}
-				}
-				Identity::Book(_) => html,
-			};
-			let mut ids: Vec<String> = chapter_html
-				.select(".dropdown-content a[href*='/books/']")
+			let mut series_ids: Vec<String> = html
+				.select(".xcpreview a")
 				.map(|els| {
 					els.filter_map(|e| {
 						let href = Self::destination(&e.attr("href")?);
@@ -413,6 +409,33 @@ impl Source for FreeComicsXxx {
 					.collect()
 				})
 				.unwrap_or_default();
+			series_ids.dedup();
+			let chapter_html = match identity {
+				Identity::Series(_) => {
+					if let Some(first_id) = series_ids.first() {
+						self.request(&format!("/books/{first_id}.html"))?.html()?
+					} else {
+						html
+					}
+				}
+				Identity::Book(_) => html,
+			};
+			let mut dropdown_ids: Vec<String> = chapter_html
+				.select(".dropdown-content a")
+				.map(|els| {
+					els.filter_map(|e| {
+						let href = Self::destination(&e.attr("href")?);
+						Self::extract_between(&href, "/books/", ".html").map(String::from)
+					})
+					.collect()
+				})
+				.unwrap_or_default();
+			dropdown_ids.dedup();
+			let mut ids = if dropdown_ids.is_empty() {
+				series_ids
+			} else {
+				dropdown_ids
+			};
 			if ids.is_empty()
 				&& let Identity::Book(id) = identity
 			{
@@ -439,25 +462,31 @@ impl Source for FreeComicsXxx {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let html = self
-			.request(&format!("/books/{}.html", chapter.key))?
-			.html()?;
+		let referer = format!("{BASE_URL}/books/{}.html", chapter.key);
+		let html = self.request(&referer)?.html()?;
 		let mut urls: Vec<String> = html
 			.select(".ximg")
 			.map(|els| {
-				els.filter_map(|e| e.attr("abs:src").or_else(|| e.attr("data-src")))
-					.filter(|url| url.contains("cdn.freecomics.xxx/galleries/"))
-					.collect()
+				els.filter_map(|e| {
+					e.attr("data-src")
+						.or_else(|| e.attr("data-lazy-src"))
+						.or_else(|| e.attr("data-original"))
+						.or_else(|| e.attr("abs:src"))
+				})
+				.filter(|url| url.contains("cdn.freecomics.xxx/galleries/"))
+				.collect()
 			})
 			.unwrap_or_default();
 		urls.dedup();
 		if urls.is_empty() {
 			bail!("Aucune page trouvée")
 		}
+		let mut context = PageContext::new();
+		context.insert("Referer".into(), referer);
 		Ok(urls
 			.into_iter()
 			.map(|url| Page {
-				content: PageContent::url(url),
+				content: PageContent::url_context(url, context.clone()),
 				..Default::default()
 			})
 			.collect())
@@ -491,20 +520,11 @@ impl Home for FreeComicsXxx {
 			("hentai", "Hentai", "/genre-hentai-page-1.html"),
 			("3d", "3D", "/genre-3d-page-1.html"),
 		];
-		send_partial_result(&HomePartialResult::Layout(HomeLayout {
-			components: definitions
-				.iter()
-				.map(|(_, title, _)| HomeComponent {
-					title: Some((*title).into()),
-					subtitle: None,
-					value: HomeComponentValue::empty_scroller(),
-				})
-				.collect(),
-		}));
 		let requests = definitions
 			.iter()
 			.map(|(_, _, path)| self.request(path))
 			.collect::<Result<Vec<_>>>()?;
+		let mut components = Vec::new();
 		for ((id, title, _), response) in definitions.into_iter().zip(Request::send_all(requests)) {
 			let Ok(html) = response.and_then(|response| response.get_html()) else {
 				continue;
@@ -513,16 +533,16 @@ impl Home for FreeComicsXxx {
 			if entries.is_empty() {
 				continue;
 			}
-			send_partial_result(&HomePartialResult::Component(HomeComponent {
+			components.push(HomeComponent {
 				title: Some(title.into()),
 				subtitle: None,
 				value: HomeComponentValue::Scroller {
 					entries: entries.into_iter().map(Into::into).collect(),
 					listing: Some(Self::listing(id, title)),
 				},
-			}));
+			});
 		}
-		Ok(HomeLayout::default())
+		Ok(HomeLayout { components })
 	}
 }
 
@@ -568,9 +588,14 @@ impl ImageRequestProvider for FreeComicsXxx {
 	fn get_image_request(
 		&self,
 		url: String,
-		_context: Option<aidoku::PageContext>,
+		context: Option<aidoku::PageContext>,
 	) -> Result<Request> {
-		self.request(&url)
+		let referer = context
+			.as_ref()
+			.and_then(|context| context.get("Referer"))
+			.map(String::as_str)
+			.unwrap_or(BASE_URL);
+		Ok(Request::get(url)?.header("Referer", referer))
 	}
 }
 
