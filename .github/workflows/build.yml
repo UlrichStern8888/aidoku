@@ -24,7 +24,7 @@ on:
       - ".github/workflows/build.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: aidoku-build-${{ github.ref }}
@@ -37,6 +37,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: read
 
     steps:
       - name: Checkout
@@ -102,17 +105,15 @@ jobs:
           path: public
           if-no-files-found: error
 
-      - name: Publish the source list to GitHub Pages
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: JamesIves/github-pages-deploy-action@v4.7.2
+      - name: Configure GitHub Pages
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-pages-artifact@v4
         with:
-          branch: gh-pages
-          folder: public
-          single-commit: true
-          clean: true
-          git-config-name: github-actions[bot]
-          git-config-email: github-actions[bot]@users.noreply.github.com
-          commit-message: Publish Aidoku sources from ${{ github.sha }}
+          path: public
 
       - name: Attach packages to a tagged GitHub release
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
@@ -123,3 +124,19 @@ jobs:
             public/index.json
             public/index.min.json
             public/sources/*.aix
+
+  deploy-pages:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
