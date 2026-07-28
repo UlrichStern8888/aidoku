@@ -1,0 +1,70 @@
+{
+  "name": "Ulrichstern Aidoku Sources",
+  "sources": [
+    {
+      "id": "en.freecomicsxxx",
+      "name": "FreeComics.XXX",
+      "version": 3,
+      "iconURL": "icons/en.freecomicsxxx-v3.png",
+      "downloadURL": "sources/en.freecomicsxxx-v3.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://www.freecomics.xxx/main1.html",
+      "minAppVersion": "0.7.1"
+    },
+    {
+      "id": "fr.hentaiorigines",
+      "name": "HentaiOrigines",
+      "version": 3,
+      "iconURL": "icons/fr.hentaiorigines-v3.png",
+      "downloadURL": "sources/fr.hentaiorigines-v3.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://hentai-origines.com",
+      "minAppVersion": "0.7.1"
+    },
+    {
+      "id": "fr.hentaiscantradvf",
+      "name": "Hentai Scantrad VF",
+      "version": 3,
+      "iconURL": "icons/fr.hentaiscantradvf-v3.png",
+      "downloadURL": "sources/fr.hentaiscantradvf-v3.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://hentai.scantrad-vf.cc",
+      "minAppVersion": "0.7.1"
+    },
+    {
+      "id": "fr.ortegascans",
+      "name": "OrtegaScans",
+      "version": 3,
+      "iconURL": "icons/fr.ortegascans-v3.png",
+      "downloadURL": "sources/fr.ortegascans-v3.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://ortegascans.fr",
+      "minAppVersion": "0.7.1"
+    },
+    {
+      "id": "fr.scansfrnsfw",
+      "name": "ScansFR NSFW",
+      "version": 3,
+      "iconURL": "icons/fr.scansfrnsfw-v3.png",
+      "downloadURL": "sources/fr.scansfrnsfw-v3.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://scansfr.com/nsfw",
+      "minAppVersion": "0.7.1"
+    }
+  ]
+}
