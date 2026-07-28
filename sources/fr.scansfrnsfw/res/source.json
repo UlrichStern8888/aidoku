@@ -1,0 +1,19 @@
+{
+	"info": {
+		"id": "fr.scansfrnsfw",
+		"name": "ScansFR NSFW",
+		"version": 2,
+		"url": "https://scansfr.com/nsfw",
+		"contentRating": 2,
+		"languages": ["fr"],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{"id": "updated", "name": "Dernières sorties"},
+		{"id": "latest", "name": "Nouveautés"},
+		{"id": "popular", "name": "Top"}
+	],
+	"config": {
+		"maximumParallelRequests": 3
+	}
+}

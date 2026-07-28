@@ -1,0 +1,125 @@
+name: Build and publish Aidoku sources
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "sources/**"
+      - "templates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/**"
+      - ".github/workflows/build.yml"
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+    paths:
+      - "sources/**"
+      - "templates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/**"
+      - ".github/workflows/build.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aidoku-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AIDOKU_CLI_REV: 1a6bb691dd67c7151fc76fc852fb5a364d325f72
+  SOURCE_LIST_NAME: Ulrichstern Aidoku Sources
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust and the WASM target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Install the Aidoku CLI
+        run: cargo install --git https://github.com/Aidoku/aidoku-rs --rev "$AIDOKU_CLI_REV" --target x86_64-unknown-linux-gnu aidoku-cli
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Run Clippy
+        run: cargo clippy --workspace -- -D warnings
+
+      - name: Check the WASM workspace
+        run: cargo check --workspace
+
+      - name: Build all source packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source_dir in sources/*; do
+            if [[ -f "$source_dir/Cargo.toml" ]]; then
+              echo "Packaging $source_dir"
+              (cd "$source_dir" && aidoku package)
+            fi
+          done
+
+      - name: Verify all source packages
+        run: aidoku verify sources/*/package.aix
+
+      - name: Generate the Aidoku source list
+        run: aidoku build sources/*/package.aix --name "$SOURCE_LIST_NAME" --output public
+
+      - name: Show the installation URL
+        shell: bash
+        run: |
+          repository_name="${GITHUB_REPOSITORY#*/}"
+          source_list_url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${repository_name}/index.min.json"
+          {
+            echo "## Aidoku source list"
+            echo
+            echo "Add this URL in Aidoku after GitHub Pages is enabled:"
+            echo
+            echo "\`$source_list_url\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aidoku-sources-${{ github.sha }}
+          path: public
+          if-no-files-found: error
+
+      - name: Publish the source list to GitHub Pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: JamesIves/github-pages-deploy-action@v4.7.2
+        with:
+          branch: gh-pages
+          folder: public
+          single-commit: true
+          clean: true
+          git-config-name: github-actions[bot]
+          git-config-email: github-actions[bot]@users.noreply.github.com
+          commit-message: Publish Aidoku sources from ${{ github.sha }}
+
+      - name: Attach packages to a tagged GitHub release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            public/index.json
+            public/index.min.json
+            public/sources/*.aix

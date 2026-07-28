@@ -1,0 +1,21 @@
+{
+	"info": {
+		"id": "en.freecomicsxxx",
+		"name": "FreeComics.XXX",
+		"version": 2,
+		"url": "https://www.freecomics.xxx/main1.html",
+		"contentRating": 2,
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{"id": "new", "name": "Nouveaux comics"},
+		{"id": "popular", "name": "Populaires"},
+		{"id": "western", "name": "Western"},
+		{"id": "hentai", "name": "Hentai"},
+		{"id": "3d", "name": "3D"}
+	],
+	"config": {
+		"maximumParallelRequests": 3
+	}
+}
