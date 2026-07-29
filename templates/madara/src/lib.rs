@@ -1,10 +1,10 @@
 #![no_std]
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, Home,
-	HomeLayout, ImageRequestProvider, ListingProvider, Manga, MangaPageResult, MigrationHandler,
-	Page, PageContext, Result, Source, Viewer,
+	HomeLayout, ImageRequestProvider, ImageResponse, ListingProvider, Manga, MangaPageResult,
+	MigrationHandler, Page, PageContext, PageImageProcessor, Result, Source, Viewer,
 	alloc::{String, Vec, borrow::Cow},
-	imports::net::Request,
+	imports::{canvas::ImageRef, net::Request},
 	prelude::*,
 };
 
@@ -179,6 +179,23 @@ impl<T: Impl> DynamicFilters for Madara<T> {
 impl<T: Impl> ImageRequestProvider for Madara<T> {
 	fn get_image_request(&self, url: String, context: Option<PageContext>) -> Result<Request> {
 		self.inner.get_image_request(&self.params, url, context)
+	}
+}
+
+impl<T: Impl> PageImageProcessor for Madara<T> {
+	fn process_page_image(
+		&self,
+		response: ImageResponse,
+		context: Option<PageContext>,
+	) -> Result<ImageRef> {
+		if response.code < 400 {
+			return Ok(response.image);
+		}
+		let url = response
+			.request
+			.url
+			.ok_or_else(|| error!("URL d’image manquante"))?;
+		Ok(self.get_image_request(url, context)?.image()?)
 	}
 }
 

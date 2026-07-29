@@ -457,11 +457,9 @@ pub trait Impl {
 			let manga_link = el
 				.select_first(".post-title a")
 				.or_else(|| el.select_first(".widget-title a"))?;
+			let manga_url = helpers::absolute_url(&params.base_url, &manga_link.attr("href")?);
 			Some(Manga {
-				key: manga_link
-					.attr("href")?
-					.strip_prefix_or_self(&params.base_url)
-					.into(),
+				key: manga_url.strip_prefix_or_self(&params.base_url).into(),
 				title: manga_link.text()?,
 				cover: el.select_first("img").and_then(|img| {
 					img.attr("data-src")
@@ -470,22 +468,20 @@ pub trait Impl {
 						.or_else(|| img.attr("abs:src"))
 						.map(|url| helpers::absolute_url(&params.base_url, &url))
 				}),
-				url: manga_link.attr("href"),
+				url: Some(manga_url),
 				..Default::default()
 			})
 		};
 		let parse_manga_with_chapter = |el: &Element| -> Option<MangaWithChapter> {
 			let manga = parse_manga(el)?;
 			let chapter_link = el.select_first(".chapter-item a")?;
+			let chapter_url = helpers::absolute_url(&params.base_url, &chapter_link.attr("href")?);
 			let title_text = chapter_link.text()?;
 			let chapter_number = helpers::find_first_f32(&title_text);
 			Some(MangaWithChapter {
 				manga,
 				chapter: Chapter {
-					key: chapter_link
-						.attr("href")?
-						.strip_prefix_or_self(&params.base_url)
-						.into(),
+					key: chapter_url.strip_prefix_or_self(&params.base_url).into(),
 					title: if title_text.contains("-") {
 						title_text
 							.split_once('-')
@@ -498,7 +494,7 @@ pub trait Impl {
 						.select_first(".timediff a")
 						.and_then(|el| el.attr("title"))
 						.map(|date| helpers::parse_chapter_date(params, &date)),
-					url: chapter_link.attr("href"),
+					url: Some(chapter_url),
 					..Default::default()
 				},
 			})
@@ -715,8 +711,10 @@ pub trait Impl {
 		{
 			return self.modify_request(
 				params,
-				Request::get(url)?
+				Request::get(helpers::reader_url(&url))?
 					.header("Referer", referer)
+					.header("Cache-Control", "no-cache")
+					.header("Pragma", "no-cache")
 					.header(
 						"Accept",
 						"image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
@@ -726,8 +724,10 @@ pub trait Impl {
 		}
 		self.modify_request(
 			params,
-			Request::get(url)?
+			Request::get(helpers::reader_url(&url))?
 				.header("Referer", &format!("{}/", params.base_url))
+				.header("Cache-Control", "no-cache")
+				.header("Pragma", "no-cache")
 				.header(
 					"Accept",
 					"image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",

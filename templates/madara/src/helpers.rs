@@ -112,6 +112,14 @@ pub fn absolute_url(base: &str, value: &str) -> String {
 	format!("{directory}/{value}")
 }
 
+/// Change Aidoku/Nuke's cache key without altering the HTTP resource sent to
+/// the server. URL fragments are client-side only and are never part of the
+/// HTTP request target.
+pub fn reader_url(url: &str) -> String {
+	let url = url.split('#').next().unwrap_or(url);
+	format!("{url}#aidoku-v6")
+}
+
 pub fn find_first_f32(s: &str) -> Option<f32> {
 	let mut num = String::new();
 	let mut found_digit = false;
@@ -499,6 +507,18 @@ mod test {
 		assert_eq!(
 			absolute_url("https://example.com", "//cdn.example.com/page.webp"),
 			"https://cdn.example.com/page.webp"
+		);
+	}
+
+	#[aidoku_test]
+	fn test_reader_url() {
+		assert_eq!(
+			reader_url("https://example.com/page.webp?sig=abc"),
+			"https://example.com/page.webp?sig=abc#aidoku-v6"
+		);
+		assert_eq!(
+			reader_url("https://example.com/page.jpg#old"),
+			"https://example.com/page.jpg#aidoku-v6"
 		);
 	}
 }

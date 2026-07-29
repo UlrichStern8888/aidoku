@@ -2,11 +2,13 @@
 use aidoku::{
 	Chapter, CheckFilter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter,
 	FilterValue, Home, HomeComponent, HomeComponentValue, HomeLayout, ImageRequestProvider,
-	Listing, ListingKind, ListingProvider, Manga, MangaPageResult, MangaStatus, MultiSelectFilter,
-	Page, PageContent, PageContext, Result, SelectFilter, SortFilter, Source, TextFilter, Viewer,
+	ImageResponse, Listing, ListingKind, ListingProvider, Manga, MangaPageResult, MangaStatus,
+	MultiSelectFilter, Page, PageContent, PageContext, PageImageProcessor, Result, SelectFilter,
+	SortFilter, Source, TextFilter, Viewer,
 	alloc::{String, Vec, borrow::Cow, format, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
+		canvas::ImageRef,
 		html::{Document, Element, Html},
 		net::{Request, TimeUnit, set_rate_limit},
 		std::send_partial_result,
@@ -17,6 +19,10 @@ use regex::Regex;
 use serde::Deserialize;
 
 const BASE_URL: &str = "https://ortegascans.fr";
+
+fn reader_url(url: &str) -> String {
+	format!("{}#aidoku-v6", url.split('#').next().unwrap_or(url))
+}
 
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -307,12 +313,18 @@ impl Source for OrtegaScans {
 							.next()?
 							.into();
 						let number = key.parse::<f32>().ok();
+						let chapter_url =
+							if href.starts_with("http://") || href.starts_with("https://") {
+								href.clone()
+							} else {
+								format!("{BASE_URL}{href}")
+							};
 						Some(Chapter {
 							key,
 							title: number.map(|n| format!("Chapitre {n}")),
 							chapter_number: number,
 							language: Some("fr".into()),
-							url: Some(format!("{BASE_URL}{href}")),
+							url: Some(chapter_url),
 							..Default::default()
 						})
 					})
@@ -610,14 +622,32 @@ impl ImageRequestProvider for OrtegaScans {
 			.and_then(|context| context.get("Referer"))
 			.map(String::as_str)
 			.unwrap_or(BASE_URL);
-		Ok(Request::get(url)?
+		Ok(Request::get(reader_url(&url))?
 			.header("Referer", referer)
 			.header("Cache-Control", "no-cache")
+			.header("Pragma", "no-cache")
 			.header(
 				"Accept",
 				"image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
 			)
 			.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"))
+	}
+}
+
+impl PageImageProcessor for OrtegaScans {
+	fn process_page_image(
+		&self,
+		response: ImageResponse,
+		context: Option<PageContext>,
+	) -> Result<ImageRef> {
+		if response.code < 400 {
+			return Ok(response.image);
+		}
+		let url = response
+			.request
+			.url
+			.ok_or_else(|| error!("URL d’image manquante"))?;
+		Ok(self.get_image_request(url, context)?.image()?)
 	}
 }
 
@@ -646,6 +676,7 @@ register_source!(
 	DynamicFilters,
 	Home,
 	ImageRequestProvider,
+	PageImageProcessor,
 	ListingProvider
 );
 

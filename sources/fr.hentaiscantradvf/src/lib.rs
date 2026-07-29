@@ -96,6 +96,7 @@ register_source!(
 	DynamicFilters,
 	Home,
 	ImageRequestProvider,
+	PageImageProcessor,
 	ListingProvider,
 	MigrationHandler
 );

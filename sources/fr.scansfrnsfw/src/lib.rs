@@ -1,12 +1,14 @@
 #![no_std]
 use aidoku::{
 	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue,
-	Home, HomeComponent, HomeComponentValue, HomeLayout, ImageRequestProvider, Listing,
-	ListingKind, ListingProvider, Manga, MangaPageResult, MangaStatus, MultiSelectFilter, Page,
-	PageContent, PageContext, Result, SelectFilter, SortFilter, Source, Viewer,
+	Home, HomeComponent, HomeComponentValue, HomeLayout, ImageRequestProvider, ImageResponse,
+	Listing, ListingKind, ListingProvider, Manga, MangaPageResult, MangaStatus, MultiSelectFilter,
+	Page, PageContent, PageContext, PageImageProcessor, Result, SelectFilter, SortFilter, Source,
+	Viewer,
 	alloc::{String, Vec, borrow::Cow, format, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
+		canvas::ImageRef,
 		html::{Document, Element},
 		net::{Request, TimeUnit, set_rate_limit},
 		std::{current_date, send_partial_result},
@@ -19,6 +21,10 @@ use serde::Deserialize;
 const BASE_URL: &str = "https://scansfr.com";
 const API_URL: &str = "https://api.scansfr.com";
 const COOKIE: &str = "scansfr_age_verified=true";
+
+fn reader_url(url: &str) -> String {
+	format!("{}#aidoku-v6", url.split('#').next().unwrap_or(url))
+}
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
 #[derive(Default, Deserialize)]
@@ -583,16 +589,34 @@ impl ImageRequestProvider for ScansFrNsfw {
 			.and_then(|context| context.get("Cookie"))
 			.map(String::as_str)
 			.unwrap_or(COOKIE);
-		Ok(Request::get(url)?
+		Ok(Request::get(reader_url(&url))?
 			.header("Cookie", cookie)
 			.header("Referer", referer)
 			.header("User-Agent", USER_AGENT)
 			.header("Cache-Control", "no-cache")
+			.header("Pragma", "no-cache")
 			.header(
 				"Accept",
 				"image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
 			)
 			.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"))
+	}
+}
+
+impl PageImageProcessor for ScansFrNsfw {
+	fn process_page_image(
+		&self,
+		response: ImageResponse,
+		context: Option<PageContext>,
+	) -> Result<ImageRef> {
+		if response.code < 400 {
+			return Ok(response.image);
+		}
+		let url = response
+			.request
+			.url
+			.ok_or_else(|| error!("URL d’image manquante"))?;
+		Ok(self.get_image_request(url, context)?.image()?)
 	}
 }
 
@@ -612,6 +636,7 @@ register_source!(
 	DynamicFilters,
 	Home,
 	ImageRequestProvider,
+	PageImageProcessor,
 	ListingProvider
 );
 
