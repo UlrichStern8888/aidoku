@@ -18,7 +18,17 @@ La forme explicite suivante fonctionne également :
 https://ulrichstern8888.github.io/aidoku/index.min.json
 ```
 
-Ouvrez ensuite **Parcourir**, sélectionnez **Ulrichstern Aidoku Sources** et installez les sources souhaitées.
+## Afficher les sources NSFW
+
+Aidoku peut masquer les sources adultes selon la classification actuellement sélectionnée. Pour afficher toutes les sources NSFW de la collection :
+
+1. ouvrez **Parcourir** ;
+2. touchez le bouton **+** ;
+3. ouvrez le **menu à trois traits en haut à droite** ;
+4. sélectionnez **Classification du contenu** ;
+5. choisissez **Principalement du contenu restreint**.
+
+Sélectionnez ensuite **Ulrichstern Aidoku Sources** et installez les sources souhaitées.
 
 ## Installer un paquet manuellement
 

@@ -38,7 +38,8 @@
    https://ulrichstern8888.github.io/aidoku/
    ```
 
-3. Ouvrez **Parcourir → Ulrichstern Aidoku Sources** et installez les sources souhaitées.
+3. Pour afficher toutes les sources NSFW, ouvrez **Parcourir → + → menu à trois traits en haut à droite → Classification du contenu**, puis choisissez **Principalement du contenu restreint**.
+4. Sélectionnez **Ulrichstern Aidoku Sources** et installez les sources souhaitées.
 
 Besoin d’aide ? Consultez le [guide d’installation détaillé](docs/installation.md).
 
