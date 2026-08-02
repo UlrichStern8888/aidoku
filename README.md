@@ -1,169 +1,91 @@
-# Ulrichstern — sources Aidoku en Rust
+<div align="center">
 
-[![Build and publish](https://github.com/Ulrichstern8888/aidoku/actions/workflows/build.yml/badge.svg)](https://github.com/Ulrichstern8888/aidoku/actions/workflows/build.yml)
+<p>
+  <img src="sources/fr.hentaiorigines/res/icon.png" width="72" alt="HentaiOrigines">
+  &nbsp;
+  <img src="sources/fr.hentaiscantradvf/res/icon.png" width="72" alt="Hentai Scantrad VF">
+  &nbsp;
+  <img src="sources/fr.scansfrnsfw/res/icon.png" width="72" alt="ScansFR NSFW">
+  &nbsp;
+  <img src="sources/fr.ortegascans/res/icon.png" width="72" alt="OrtegaScans">
+  &nbsp;
+  <img src="sources/en.freecomicsxxx/res/icon.png" width="72" alt="FreeComics.XXX">
+</p>
 
-Portage Rust pour Aidoku 0.7+ de cinq sources issues du projet Paperback. Le dépôt produit des paquets `.aix` installables et une liste de sources mise à jour automatiquement avec GitHub Actions et GitHub Pages.
+# Ulrichstern Aidoku Sources
+
+### Cinq sources adultes, un lecteur moderne, une installation en quelques secondes.
+
+[![Build](https://github.com/Ulrichstern8888/aidoku/actions/workflows/build.yml/badge.svg)](https://github.com/Ulrichstern8888/aidoku/actions/workflows/build.yml)
+[![Aidoku](https://img.shields.io/badge/Aidoku-0.7%2B-7c5cff?style=flat-square)](https://aidoku.app/)
+[![Rust](https://img.shields.io/badge/Rust-WebAssembly-f74c00?style=flat-square&logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![Sources](https://img.shields.io/badge/sources-5-22c55e?style=flat-square)](#-sources-disponibles)
+[![License](https://img.shields.io/badge/licence-GPL--3.0-blue?style=flat-square)](LICENSE)
+
+**[Installer la liste](https://ulrichstern8888.github.io/aidoku/)** · **[Découvrir Aidoku](https://aidoku.app/)** · **[Lire la documentation](docs/README.md)**
+
+</div>
 
 > [!WARNING]
-> Ces sources donnent accès à du contenu strictement réservé à un public majeur. Les sources externes sont indépendantes d'Aidoku et restent soumises à la disponibilité des sites concernés.
+> Ces sources donnent accès à du contenu strictement réservé à un public majeur. Les sites référencés sont indépendants d’Aidoku et peuvent modifier leur disponibilité ou leurs protections.
 
-## Installation rapide dans Aidoku
+## ⚡ Installation express
 
-Après la première publication GitHub Pages, ajoutez cette adresse dans **Aidoku → Réglages → Listes de sources** :
+1. Installez [Aidoku](https://aidoku.app/) sur iPhone ou iPad. Pour le sideload, utilisez la [source AltStore officielle d’Aidoku](https://raw.githubusercontent.com/Aidoku/Aidoku/altstore/apps.json).
+2. Dans **Aidoku → Réglages → Listes de sources**, ajoutez :
 
-```text
-https://ulrichstern8888.github.io/aidoku/
-```
+   ```text
+   https://ulrichstern8888.github.io/aidoku/
+   ```
 
-Ouvrez ensuite **Parcourir**, sélectionnez la liste **Ulrichstern Aidoku Sources**, puis installez les sources souhaitées. Aidoku n'affiche pas nécessairement un réglage NSFW séparé selon la version installée.
+3. Ouvrez **Parcourir → Ulrichstern Aidoku Sources** et installez les sources souhaitées.
 
-Les fichiers `.aix` peuvent aussi être téléchargés depuis l'artefact du dernier build ou depuis une release GitHub, puis ouverts avec Aidoku.
+Besoin d’aide ? Consultez le [guide d’installation détaillé](docs/installation.md).
 
-## Sources disponibles
+## ✨ Pourquoi cette collection ?
 
-| Source             | Langue | Fonctions principales                                      | Particularité                                   |
-| :----------------- | :----: | :--------------------------------------------------------- | :---------------------------------------------- |
-| HentaiOrigines     |   FR   | Recherche, accueil, listes, pagination, lecture            | Moteur Madara et cookie de validation adulte    |
-| Hentai Scantrad VF |   FR   | Recherche, accueil, listes, pagination, lecture            | Challenge Cloudflare possible                   |
-| ScansFR NSFW       |   FR   | Accueil complet, recherche, filtres dynamiques, lecture    | Jetons d'images signés et contrôle NSFW         |
-| OrtegaScans        |   FR   | API paginée, genres dynamiques, listes, lecture            | Exclusion Premium et secours JSON des chapitres |
-| FreeComics.XXX     |   EN   | Genres/artistes dynamiques, cinq rubriques, séries         | Rubriques parallèles et regroupement des livres |
+- **Lecture complète** : accueil, recherche, catégories, fiches, chapitres et pages.
+- **Rapide et native** : sources Rust compilées en WebAssembly pour Aidoku.
+- **Résistante aux changements** : URL relatives, images différées, cookies, jetons et réponses JSON pris en charge.
+- **Vérifiée automatiquement** : formatage, Clippy, compilation et validation de chaque paquet `.aix` sur GitHub Actions.
+- **Mise à jour simple** : les nouvelles versions apparaissent directement dans la liste Aidoku.
 
-## Fonctions du portage
+## 📚 Sources disponibles
 
-- API Rust moderne `aidoku-rs` 0.3 et cible `wasm32-unknown-unknown`.
-- Accueils Aidoku, listes paginées, recherche et filtres dynamiques.
-- Résultats partiels des fiches et chargement parallèle des rubriques indépendantes.
-- Liens profonds vers les mangas et chapitres pris en charge.
-- En-têtes `Referer`, cookie adulte et requêtes d'images spécifiques aux sites.
-- Déduplication des mangas, chapitres et pages.
-- Validation automatique de chaque paquet avec le CLI Aidoku.
+| | Source | Langue | Points forts |
+| :-: | :-- | :-: | :-- |
+| <img src="sources/fr.hentaiorigines/res/icon.png" width="36" alt=""> | **HentaiOrigines** | 🇫🇷 | Accueil, tendances, filtres et lecteur Madara |
+| <img src="sources/fr.hentaiscantradvf/res/icon.png" width="36" alt=""> | **Hentai Scantrad VF** | 🇫🇷 | Catalogue complet et session Cloudflare |
+| <img src="sources/fr.scansfrnsfw/res/icon.png" width="36" alt=""> | **ScansFR NSFW** | 🇫🇷 | Filtres dynamiques et images signées |
+| <img src="sources/fr.ortegascans/res/icon.png" width="36" alt=""> | **OrtegaScans** | 🇫🇷 | API paginée, genres et couvertures dédiées |
+| <img src="sources/en.freecomicsxxx/res/icon.png" width="36" alt=""> | **FreeComics.XXX** | 🇬🇧 | Genres, artistes et regroupement des livres |
 
-## Cloudflare et Hentai Scantrad VF
+## 🔁 Vous utilisez Paperback ?
 
-Aidoku détecte certaines réponses Cloudflare 403/503. L'application peut alors ouvrir une WebView et afficher le captcha. Après validation, le cookie `cf_clearance` appartient à la session réseau gérée par Aidoku ; la source Rust ne contourne pas le captcha et ne peut pas recevoir directement un événement « captcha terminé ».
+Une collection alternative est également disponible pour **Paperback**, application de lecture proposée sur l’App Store :
 
-Si la page initiale reste vide après validation, fermez la WebView puis actualisez ou rouvrez la source afin de rejouer la requête avec le nouveau cookie. Un redémarrage d'Aidoku n'est utile que si l'application ne rejoue toujours pas la requête. Le cookie persistant explique pourquoi la source peut fonctionner immédiatement après ce redémarrage.
+**→ [UlrichStern8888/paperback](https://github.com/UlrichStern8888/paperback)**
 
-Ce mécanisme dépend de la page renvoyée par Cloudflare. Un challenge non reconnu, expiré ou lié à une autre session peut encore bloquer temporairement la source.
+Les projets Aidoku et Paperback sont maintenus séparément afin de respecter les capacités et le format d’extension propres à chaque application.
 
-## Architecture des requêtes
+## 🧭 Documentation
 
-Les sources OrtegaScans, ScansFR NSFW et FreeComics.XXX possèdent leurs propres adaptateurs. HentaiOrigines et Hentai Scantrad VF s'appuient sur [`templates/madara`](templates/madara/README.md), une bibliothèque Rust commune compilée dans chaque source : ce dossier doit être conservé.
+| Guide | Contenu |
+| :-- | :-- |
+| [Installation](docs/installation.md) | Aidoku, sideload, ajout de la liste et mises à jour |
+| [Architecture](docs/architecture.md) | Organisation des sources, requêtes, lecteur et moteur Madara |
+| [Développement](docs/development.md) | Prérequis, compilation, tests, paquets et publication |
+| [Dépannage](docs/troubleshooting.md) | Cloudflare, lenteurs, images et limites connues |
 
-Le parcours principal est le suivant :
+<details>
+<summary><strong>Informations pour les développeurs</strong></summary>
 
-1. `get_search_manga_list` récupère les cartes et la pagination ;
-2. `get_manga_update` complète la fiche et les chapitres à la demande ;
-3. `get_page_list` extrait et déduplique les URL de pages ;
-4. `get_image_request` joint le `Referer`, les cookies et les en-têtes nécessaires ;
-5. `PageImageProcessor` retente une image lorsque le serveur a renvoyé une erreur HTTP.
+Le dépôt cible `wasm32-unknown-unknown` avec `aidoku-rs`. Les sources Madara partagent une bibliothèque interne documentée dans [`templates/madara`](templates/madara/README.md). Les cinq paquets sont compilés dans des cibles isolées afin de garantir que chaque `.aix` embarque le bon module WebAssembly.
 
-Les rubriques indépendantes de l'accueil Madara sont demandées en parallèle. La limite de quatre requêtes simultanées dans `source.json` évite de sérialiser inutilement le chargement sans saturer les sites. Les délais restants proviennent surtout des serveurs externes, des images très longues ou d'un challenge Cloudflare.
+</details>
 
-## Compiler localement sous Windows
+## 🤝 Projet
 
-Prérequis :
+Maintenu sous l’identité publique **Ulrichstern** et distribué sous licence [GPL-3.0](LICENSE).
 
-- Rust stable ;
-- la cible WebAssembly ;
-- le CLI Aidoku.
-
-```powershell
-rustup target add wasm32-unknown-unknown
-cargo install --git https://github.com/Aidoku/aidoku-rs --rev 1a6bb691dd67c7151fc76fc852fb5a364d325f72 aidoku-cli
-cd D:\Downloads\aidoku-main
-cargo fmt --all --check
-cargo clippy --workspace -- -D warnings
-cargo check --workspace
-.\scripts\package.ps1
-```
-
-Le script crée :
-
-- `packages/*.aix` pour l'installation manuelle ;
-- `public/index.min.json` pour la liste Aidoku ;
-- `public/sources/*.aix` et les icônes nécessaires à la publication.
-
-## Publier le dépôt sur GitHub
-
-Le dépôt public utilisé est `Ulrichstern8888/aidoku`. Pour envoyer les modifications :
-
-```powershell
-cd D:\Downloads\aidoku-main
-git init
-git add .
-git commit -m "Initial Aidoku sources"
-git branch -M main
-git remote add origin https://github.com/Ulrichstern8888/aidoku.git
-git push -u origin main
-```
-
-Le workflow `.github/workflows/build.yml` effectue automatiquement :
-
-1. le contrôle du formatage ;
-2. Clippy avec les avertissements interdits ;
-3. la compilation WebAssembly des cinq sources ;
-4. la création et la vérification des `.aix` ;
-5. la génération de la liste Aidoku ;
-6. l'envoi d'un artefact téléchargeable ;
-7. le déploiement direct de `public/` avec le service officiel GitHub Pages.
-
-Avant le premier déploiement, ouvrez **GitHub → Settings → Pages** et sélectionnez :
-
-- **Source** : `GitHub Actions`.
-
-Il ne faut plus sélectionner la branche `gh-pages` : le travail `deploy-pages` publie directement l'artefact produit par le travail de compilation. Cela garantit que chaque mise à jour validée devient immédiatement un nouveau déploiement Pages.
-
-L'adresse publique devient alors :
-
-```text
-https://ulrichstern8888.github.io/aidoku/
-```
-
-La forme explicite `https://ulrichstern8888.github.io/aidoku/index.min.json` fonctionne également.
-
-## Publier une release
-
-Un tag commençant par `v` crée automatiquement une release contenant les cinq `.aix` :
-
-```powershell
-git tag v2.0.0
-git push origin v2.0.0
-```
-
-Pour qu'Aidoku propose une mise à jour, augmentez aussi le champ `info.version` dans le `res/source.json` de la source modifiée.
-
-## Limites connues
-
-- Les sites peuvent changer leurs routes, leur HTML ou leur API sans préavis.
-- OrtegaScans fournit parfois des JPEG très longs (jusqu'à plus de 40 000 pixels et 10 Mo par page) : leur premier affichage peut être lent sur un appareil ancien.
-- ScansFR exige à la fois son cookie adulte et un User-Agent de navigateur ; la source les ajoute aux requêtes d'images.
-- Les filtres dynamiques OrtegaScans et FreeComics nécessitent une requête lors de leur première ouverture.
-- FreeComics ne fournit qu'une route serveur principale à la fois ; certaines combinaisons de facettes sont affinées localement et peuvent produire des pages moins remplies.
-- Le fonctionnement exact des cookies, du cache et de la WebView Cloudflare doit être confirmé dans Aidoku sur iPhone ou iPad.
-- Certains champs Paperback sans équivalent direct dans Aidoku, notamment quelques titres alternatifs, sont omis.
-
-## Structure du dépôt
-
-```text
-aidoku-main/
-├── .github/workflows/build.yml
-├── scripts/package.ps1
-├── sources/
-│   ├── en.freecomicsxxx/
-│   ├── fr.hentaiorigines/
-│   ├── fr.hentaiscantradvf/
-│   ├── fr.ortegascans/
-│   └── fr.scansfrnsfw/
-├── templates/madara/
-├── Cargo.toml
-├── Cargo.lock
-└── LICENSE
-```
-
-Les dossiers `target/`, `packages/`, `public/` et les `package.aix` intermédiaires sont générés automatiquement et ne doivent pas être ajoutés au dépôt.
-
-## Licence
-
-Projet maintenu sous l'identité publique **Ulrichstern**. Le code dérivé de `paperback-main` est distribué sous GPL-3.0-or-later conformément au fichier `LICENSE`.
+Les sources externes, Aidoku et Paperback sont des projets indépendants. Ce dépôt ne contourne pas les captchas et ne fournit aucun contenu : il permet uniquement à Aidoku de lire les réponses des sites configurés.
