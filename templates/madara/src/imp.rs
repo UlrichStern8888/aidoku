@@ -305,20 +305,34 @@ pub trait Impl {
 				.unwrap_or(url);
 			let mut context = PageContext::new();
 			context.insert("Referer".into(), base_uri.clone());
-			return Ok(html
-				.select(&params.page_list_selector)
-				.map(|els| {
-					els.filter_map(|el| {
-						let url = el.select_first("img")?.img_attr(params.use_style_images)?;
-						let url = helpers::absolute_url(&base_uri, &url);
-						Some(Page {
-							content: PageContent::url_context(url, context.clone()),
-							..Default::default()
-						})
-					})
-					.collect()
+			let mut image_urls = Vec::new();
+			if let Some(elements) = html.select(&params.page_list_selector) {
+				for element in elements {
+					// Madara themes differ here: some selectors match the image
+					// itself, while others match a `.page-break` container.
+					let image_url = element.img_attr(params.use_style_images).or_else(|| {
+						element
+							.select_first("img")
+							.and_then(|image| image.img_attr(params.use_style_images))
+					});
+					if let Some(image_url) = image_url {
+						let image_url = helpers::absolute_url(&base_uri, &image_url);
+						if !image_urls.contains(&image_url) {
+							image_urls.push(image_url);
+						}
+					}
+				}
+			}
+			if image_urls.is_empty() {
+				bail!("Aucune image trouvée dans ce chapitre")
+			}
+			return Ok(image_urls
+				.into_iter()
+				.map(|image_url| Page {
+					content: PageContent::url_context(image_url, context.clone()),
+					..Default::default()
 				})
-				.unwrap_or_default());
+				.collect());
 		};
 
 		let chapter_protector_html = chapter_protector

@@ -1,4 +1,10 @@
 #![no_std]
+//! Shared implementation for sources powered by the WordPress Madara theme.
+//!
+//! A source supplies selectors and the few site-specific overrides through
+//! [`Impl`]. This crate owns the common catalogue, details, chapter, reader,
+//! filters, home, deep-link, migration, and image-request flows.
+
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, Home,
 	HomeLayout, ImageRequestProvider, ImageResponse, ListingProvider, Manga, MangaPageResult,

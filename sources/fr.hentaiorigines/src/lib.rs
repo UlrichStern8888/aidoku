@@ -1,14 +1,14 @@
 #![no_std]
+//! Aidoku adapter for HentaiOrigines, built on the shared Madara engine.
+
 use aidoku::{
-	Chapter, ContentRating, FilterValue, Listing, Manga, MangaPageResult, Page, PageContent,
-	PageContext, Result, Source, Viewer,
-	alloc::{Vec, vec},
-	imports::net::Request,
-	prelude::*,
+	ContentRating, FilterValue, Listing, Manga, MangaPageResult, Result, Source, Viewer,
+	alloc::vec, imports::net::Request, prelude::*,
 };
 use madara::{Impl, LoadMoreStrategy, Madara, Params};
 
 const BASE_URL: &str = "https://hentai-origines.com";
+const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1";
 
 struct HentaiOrigines;
 
@@ -47,7 +47,13 @@ impl Impl for HentaiOrigines {
 	}
 
 	fn modify_request(&self, _params: &Params, request: Request) -> aidoku::Result<Request> {
-		Ok(request.header("Cookie", "wpmanga-adault=1"))
+		// The site hides the catalogue and chapters until its adult gate cookie is
+		// present. Browser headers avoid the intermittent empty/blocked response
+		// returned to unidentified clients.
+		Ok(request
+			.header("Cookie", "wpmanga-adault=1")
+			.header("User-Agent", USER_AGENT)
+			.header("Accept-Language", "fr-FR,fr;q=0.9,en;q=0.8"))
 	}
 
 	fn get_manga_list(
@@ -73,32 +79,6 @@ impl Impl for HentaiOrigines {
 			}],
 		)
 	}
-
-	fn get_page_list(&self, params: &Params, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let url = format!("{}{}", params.base_url, chapter.key);
-		let html = self.modify_request(params, Request::get(&url)?)?.html()?;
-		let mut context = PageContext::new();
-		context.insert("Referer".into(), url.clone());
-		Ok(html
-			.select(".reading-content img.wp-manga-chapter-img, .reading-content .page-break img, .reading-content img[data-src], .reading-content img[data-lazy-src]")
-			.map(|els| {
-				els.filter_map(|image| {
-					let image_url = image
-						.attr("data-src")
-						.or_else(|| image.attr("data-lazy-src"))
-						.or_else(|| image.attr("abs:src"))?;
-					Some(Page {
-						content: PageContent::url_context(
-							madara::helpers::absolute_url(&url, &image_url),
-							context.clone(),
-						),
-						..Default::default()
-					})
-				})
-				.collect()
-			})
-			.unwrap_or_default())
-	}
 }
 
 register_source!(
@@ -115,7 +95,7 @@ register_source!(
 #[cfg(test)]
 mod test {
 	use super::*;
-	use aidoku::{DynamicFilters, Home, ImageRequestProvider};
+	use aidoku::{DynamicFilters, Home, ImageRequestProvider, PageContent, alloc::Vec};
 	use aidoku_test::aidoku_test;
 
 	#[aidoku_test]

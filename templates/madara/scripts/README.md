@@ -1,11 +1,11 @@
-## Updating Source Genres
+# Mise à jour facultative des genres
 
-For fetching/updating a madara source's genres, use the following python script:
+`update_genres.py` récupère les genres d'un site Madara et met à jour le fichier `filters.json` indiqué :
+
 ```sh
-python update_genres.py /path/to/filters.json base_url
+python update_genres.py /chemin/vers/filters.json https://domaine.example
 ```
 
-For example, for updating Flower Manga from this directory;
-```sh
-python update_genres.py ../../../sources/pt.flowermanga/res/filters.json https://flowermanga.net
-```
+Le script n'est nécessaire que pour une source qui conserve une liste statique de genres. Les sources de ce dépôt utilisent actuellement des filtres dynamiques et n'en ont donc pas besoin pour leur fonctionnement normal.
+
+Pour l'architecture et les règles de modification du moteur partagé, voir [`../README.md`](../README.md).

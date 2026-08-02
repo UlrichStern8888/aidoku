@@ -1,4 +1,6 @@
 #![no_std]
+//! Native Aidoku source for OrtegaScans and its JSON/HTML endpoints.
+
 use aidoku::{
 	Chapter, CheckFilter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter,
 	FilterValue, Home, HomeComponent, HomeComponentValue, HomeLayout, ImageRequestProvider,
@@ -53,6 +55,10 @@ struct SeriesResponse {
 struct OrtegaScans;
 
 impl OrtegaScans {
+	fn cover_url(key: &str) -> String {
+		format!("{BASE_URL}/api/covers/{}.webp", encode_uri_component(key))
+	}
+
 	fn get_series_page(&self, query: QueryParameters) -> Result<SeriesResponse> {
 		let payload = Request::get(format!("{BASE_URL}/api/series?{query}"))?
 			.json_owned::<SeriesResponse>()?;
@@ -75,10 +81,7 @@ impl OrtegaScans {
 		Manga {
 			key: series.slug.clone(),
 			title: series.title,
-			cover: Some(format!(
-				"{BASE_URL}/api/covers/{}.webp",
-				encode_uri_component(&series.slug)
-			)),
+			cover: Some(Self::cover_url(&series.slug)),
 			tags: Some(tags),
 			status: map_status(&series.status),
 			content_rating: ContentRating::NSFW,
@@ -145,7 +148,7 @@ impl OrtegaScans {
 		if href.contains("/chapter/") {
 			return None;
 		}
-		let key = href
+		let key: String = href
 			.split("/serie/")
 			.nth(1)?
 			.trim_matches('/')
@@ -160,18 +163,7 @@ impl OrtegaScans {
 			.or_else(|| element.text())?
 			.trim()
 			.into();
-		let cover = image
-			.and_then(|e| {
-				e.attr("data-src")
-					.or_else(|| e.attr("data-lazy-src"))
-					.or_else(|| e.attr("abs:src"))
-			})
-			.or_else(|| {
-				Some(format!(
-					"{BASE_URL}/api/covers/{}.webp",
-					encode_uri_component(&key)
-				))
-			});
+		let cover = Some(Self::cover_url(&key));
 		Some(Manga {
 			url: Some(format!("{BASE_URL}/serie/{key}")),
 			key,
@@ -254,15 +246,9 @@ impl Source for OrtegaScans {
 				.select_first("h1")
 				.and_then(|e| e.text())
 				.unwrap_or(manga.title);
-			manga.cover = html
-				.select_first("main img, img[alt]")
-				.and_then(|e| e.attr("abs:src"))
-				.or_else(|| {
-					Some(format!(
-						"{BASE_URL}/api/covers/{}.webp",
-						encode_uri_component(&manga.key)
-					))
-				});
+			// Ortega exposes a stable cover endpoint. Selecting the first image in
+			// the page is unsafe because the site logo precedes the actual cover.
+			manga.cover = Some(Self::cover_url(&manga.key));
 			manga.description = html
 				.select_first("meta[name=description]")
 				.and_then(|e| e.attr("content"));
@@ -711,5 +697,27 @@ mod test {
 		let source = OrtegaScans::new();
 		assert!(source.get_home().unwrap().components.len() >= 2);
 		assert!(source.get_dynamic_filters().unwrap().len() >= 5);
+	}
+
+	#[aidoku_test]
+	fn details_keep_the_series_cover() {
+		let source = OrtegaScans::new();
+		let manga = source
+			.search(None, 1, Vec::new())
+			.unwrap()
+			.entries
+			.into_iter()
+			.next()
+			.unwrap();
+		let expected_cover = OrtegaScans::cover_url(&manga.key);
+		let manga = source.get_manga_update(manga, true, false).unwrap();
+		assert_eq!(manga.cover.as_deref(), Some(expected_cover.as_str()));
+
+		let image = source
+			.get_image_request(expected_cover, None)
+			.unwrap()
+			.image()
+			.unwrap();
+		assert!(image.width() > 0.0 && image.height() > 0.0);
 	}
 }

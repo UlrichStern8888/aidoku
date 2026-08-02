@@ -1,10 +1,9 @@
 #![no_std]
+//! Aidoku adapter for Hentai Scantrad VF, built on the shared Madara engine.
+
 use aidoku::{
-	Chapter, ContentRating, FilterValue, Listing, Manga, MangaPageResult, Page, PageContent,
-	PageContext, Result, Source, Viewer,
-	alloc::{Vec, vec},
-	imports::net::Request,
-	prelude::*,
+	ContentRating, FilterValue, Listing, Manga, MangaPageResult, Result, Source, Viewer,
+	alloc::vec, prelude::*,
 };
 use madara::{Impl, Madara, Params};
 
@@ -58,35 +57,6 @@ impl Impl for HentaiScantradVf {
 				ascending: false,
 			}],
 		)
-	}
-
-	fn get_page_list(&self, params: &Params, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let url = format!("{}{}", params.base_url, chapter.key);
-		// Keep the same cookie jar / Cloudflare session used by every other
-		// source request. Bypassing modify_request here caused valid chapters to
-		// yield image URLs that the reader could not subsequently open.
-		let html = self.modify_request(params, Request::get(&url)?)?.html()?;
-		let mut context = PageContext::new();
-		context.insert("Referer".into(), url.clone());
-		Ok(html
-			.select(".reading-content img.wp-manga-chapter-img, .reading-content .page-break img, .reading-content img[data-src], .reading-content img[data-lazy-src]")
-			.map(|els| {
-				els.filter_map(|image| {
-					let image_url = image
-						.attr("data-src")
-						.or_else(|| image.attr("data-lazy-src"))
-						.or_else(|| image.attr("abs:src"))?;
-					Some(Page {
-						content: PageContent::url_context(
-							madara::helpers::absolute_url(&url, &image_url),
-							context.clone(),
-						),
-						..Default::default()
-					})
-				})
-				.collect()
-			})
-			.unwrap_or_default())
 	}
 }
 

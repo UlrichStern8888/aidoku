@@ -41,9 +41,25 @@ Les fichiers `.aix` peuvent aussi être téléchargés depuis l'artefact du dern
 
 ## Cloudflare et Hentai Scantrad VF
 
-Aidoku détecte certaines réponses Cloudflare 403/503. L'application ouvre une WebView, affiche le captcha lorsqu'une intervention est nécessaire, récupère le cookie `cf_clearance`, puis relance la requête.
+Aidoku détecte certaines réponses Cloudflare 403/503. L'application peut alors ouvrir une WebView et afficher le captcha. Après validation, le cookie `cf_clearance` appartient à la session réseau gérée par Aidoku ; la source Rust ne contourne pas le captcha et ne peut pas recevoir directement un événement « captcha terminé ».
 
-Ce mécanisme dépend de la page renvoyée par Cloudflare. Un challenge non reconnu ou une règle de protection plus stricte peut encore bloquer temporairement la source.
+Si la page initiale reste vide après validation, fermez la WebView puis actualisez ou rouvrez la source afin de rejouer la requête avec le nouveau cookie. Un redémarrage d'Aidoku n'est utile que si l'application ne rejoue toujours pas la requête. Le cookie persistant explique pourquoi la source peut fonctionner immédiatement après ce redémarrage.
+
+Ce mécanisme dépend de la page renvoyée par Cloudflare. Un challenge non reconnu, expiré ou lié à une autre session peut encore bloquer temporairement la source.
+
+## Architecture des requêtes
+
+Les sources OrtegaScans, ScansFR NSFW et FreeComics.XXX possèdent leurs propres adaptateurs. HentaiOrigines et Hentai Scantrad VF s'appuient sur [`templates/madara`](templates/madara/README.md), une bibliothèque Rust commune compilée dans chaque source : ce dossier doit être conservé.
+
+Le parcours principal est le suivant :
+
+1. `get_search_manga_list` récupère les cartes et la pagination ;
+2. `get_manga_update` complète la fiche et les chapitres à la demande ;
+3. `get_page_list` extrait et déduplique les URL de pages ;
+4. `get_image_request` joint le `Referer`, les cookies et les en-têtes nécessaires ;
+5. `PageImageProcessor` retente une image lorsque le serveur a renvoyé une erreur HTTP.
+
+Les rubriques indépendantes de l'accueil Madara sont demandées en parallèle. La limite de quatre requêtes simultanées dans `source.json` évite de sérialiser inutilement le chargement sans saturer les sites. Les délais restants proviennent surtout des serveurs externes, des images très longues ou d'un challenge Cloudflare.
 
 ## Compiler localement sous Windows
 
