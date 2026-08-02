@@ -75,7 +75,26 @@ jobs:
           for source_dir in sources/*; do
             if [[ -f "$source_dir/Cargo.toml" ]]; then
               echo "Packaging $source_dir"
-              (cd "$source_dir" && aidoku package)
+              source_dir="$(realpath "$source_dir")"
+              (
+                cd "$source_dir"
+                # aidoku-cli copies the first WASM it finds, so each source
+                # needs its own target directory in a Cargo workspace.
+                CARGO_TARGET_DIR="$PWD/target" aidoku package
+              )
+
+              crate_name="$(sed -n 's/^name = "\([^"]*\)"/\1/p' "$source_dir/Cargo.toml" | head -n 1 | tr '-' '_')"
+              wasm_path="$source_dir/target/wasm32-unknown-unknown/release/$crate_name.wasm"
+              if [[ ! -f "$wasm_path" ]]; then
+                echo "Missing WASM for $crate_name" >&2
+                exit 1
+              fi
+              built_hash="$(sha256sum "$wasm_path" | cut -d ' ' -f 1)"
+              packaged_hash="$(unzip -p "$source_dir/package.aix" Payload/main.wasm | sha256sum | cut -d ' ' -f 1)"
+              if [[ "$built_hash" != "$packaged_hash" ]]; then
+                echo "Wrong WASM embedded in $source_dir/package.aix" >&2
+                exit 1
+              fi
             fi
           done
 

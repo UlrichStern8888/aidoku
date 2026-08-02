@@ -711,7 +711,7 @@ pub trait Impl {
 		{
 			return self.modify_request(
 				params,
-				Request::get(helpers::reader_url(&url))?
+				Request::get(url)?
 					.header("Referer", referer)
 					.header("Cache-Control", "no-cache")
 					.header("Pragma", "no-cache")
@@ -724,7 +724,7 @@ pub trait Impl {
 		}
 		self.modify_request(
 			params,
-			Request::get(helpers::reader_url(&url))?
+			Request::get(url)?
 				.header("Referer", &format!("{}/", params.base_url))
 				.header("Cache-Control", "no-cache")
 				.header("Pragma", "no-cache")

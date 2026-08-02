@@ -9,11 +9,20 @@ $packages = Join-Path $projectRoot 'packages'
 New-Item -ItemType Directory -Force -Path $packages | Out-Null
 
 Get-ChildItem -LiteralPath (Join-Path $projectRoot 'sources') -Directory | ForEach-Object {
-	& aidoku package $_.FullName
-	if ($LASTEXITCODE -ne 0) {
-		throw "Échec de l'empaquetage de $($_.Name)"
+	$sourceDirectory = $_.FullName
+	$previousTargetDirectory = $env:CARGO_TARGET_DIR
+	try {
+		# aidoku-cli copies the first WASM it finds, so isolate each source.
+		$env:CARGO_TARGET_DIR = Join-Path $sourceDirectory 'target'
+		& aidoku package $sourceDirectory
+		if ($LASTEXITCODE -ne 0) {
+			throw "Échec de l'empaquetage de $($_.Name)"
+		}
 	}
-	Copy-Item -LiteralPath (Join-Path $_.FullName 'package.aix') `
+	finally {
+		$env:CARGO_TARGET_DIR = $previousTargetDirectory
+	}
+	Copy-Item -LiteralPath (Join-Path $sourceDirectory 'package.aix') `
 		-Destination (Join-Path $packages "$($_.Name).aix") -Force
 }
 

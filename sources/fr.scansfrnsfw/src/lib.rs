@@ -21,10 +21,6 @@ use serde::Deserialize;
 const BASE_URL: &str = "https://scansfr.com";
 const API_URL: &str = "https://api.scansfr.com";
 const COOKIE: &str = "scansfr_age_verified=true";
-
-fn reader_url(url: &str) -> String {
-	format!("{}#aidoku-v6", url.split('#').next().unwrap_or(url))
-}
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
 #[derive(Default, Deserialize)]
@@ -589,7 +585,7 @@ impl ImageRequestProvider for ScansFrNsfw {
 			.and_then(|context| context.get("Cookie"))
 			.map(String::as_str)
 			.unwrap_or(COOKIE);
-		Ok(Request::get(reader_url(&url))?
+		Ok(Request::get(url)?
 			.header("Cookie", cookie)
 			.header("Referer", referer)
 			.header("User-Agent", USER_AGENT)

@@ -20,10 +20,6 @@ use serde::Deserialize;
 
 const BASE_URL: &str = "https://ortegascans.fr";
 
-fn reader_url(url: &str) -> String {
-	format!("{}#aidoku-v6", url.split('#').next().unwrap_or(url))
-}
-
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Category {
@@ -622,7 +618,7 @@ impl ImageRequestProvider for OrtegaScans {
 			.and_then(|context| context.get("Referer"))
 			.map(String::as_str)
 			.unwrap_or(BASE_URL);
-		Ok(Request::get(reader_url(&url))?
+		Ok(Request::get(url)?
 			.header("Referer", referer)
 			.header("Cache-Control", "no-cache")
 			.header("Pragma", "no-cache")
